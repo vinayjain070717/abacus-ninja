@@ -51,7 +51,6 @@ export default function GreaterThanChain({
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'playing' : 'config');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
-  const [maxDigits, setMaxDigits] = useState(DIFF_PARAMS.medium.maxDigits);
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 20);
 
   const [allProblems, setAllProblems] = useState<PairProblem[]>(() =>
@@ -69,18 +68,11 @@ export default function GreaterThanChain({
   const roundStart = useRef(Date.now());
 
   useEffect(() => {
-    if (worksheetMode) return;
-    const p = DIFF_PARAMS[difficulty];
-    setMaxDigits(p.maxDigits);
-  }, [difficulty, worksheetMode]);
-
-  useEffect(() => {
     if (phase === 'playing') roundStart.current = Date.now();
   }, [phase, currentIdx]);
 
   const startGame = () => {
     const p = DIFF_PARAMS[effectiveDiff];
-    setMaxDigits(p.maxDigits);
     const ps = Array.from({ length: totalRounds }, () => generatePair(p.maxDigits));
     setAllProblems(ps);
     setCurrentIdx(0);

@@ -48,7 +48,6 @@ export default function InfoTooltip({ benefit }: { benefit: BrainBenefit }) {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceAbove = rect.top;
-      const spaceBelow = window.innerHeight - rect.bottom;
       const popoverHeight = 280;
       setPlacement(spaceAbove >= popoverHeight ? 'above' : 'below');
       const spaceRight = window.innerWidth - rect.right;

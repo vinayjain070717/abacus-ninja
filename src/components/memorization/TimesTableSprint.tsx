@@ -24,8 +24,8 @@ export default function TimesTableSprint({
   const [maxFactor, setMaxFactor] = useState(12);
 
   const wsParams = worksheetMode ? DIFF_PARAMS[worksheetMode.difficulty ?? 'medium'] : DIFF_PARAMS.medium;
-  const [secondsLeft, setSecondsLeft] = useState(wsParams.timeLimitSeconds);
-  const [activeTimeLimit, setActiveTimeLimit] = useState(wsParams.timeLimitSeconds);
+  const [secondsLeft, setSecondsLeft] = useState<number>(wsParams.timeLimitSeconds);
+  const [activeTimeLimit, setActiveTimeLimit] = useState<number>(wsParams.timeLimitSeconds);
   const [problem, setProblem] = useState<TimesTableProblem | null>(() =>
     worksheetMode ? generateTimesTableProblem(wsParams.maxFactor) : null
   );

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { Difficulty } from '../../config/appConfig';
 import { generateEstimationProblem, type EstimationProblem } from '../../utils/problemGenerator';
-import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
 const DIFF_PARAMS = {
@@ -26,8 +25,6 @@ export default function EstimationStation({
   onComplete?: (score: number, total: number) => void;
 }) {
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'playing' : 'config');
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
   const [maxDigits, setMaxDigits] = useState(2);
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 12);
 

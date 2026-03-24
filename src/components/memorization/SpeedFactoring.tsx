@@ -61,7 +61,9 @@ export default function SpeedFactoring({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startGame = () => {
-    const ps = Array.from({ length: totalRounds }, () => generateFactoringProblem(maxN));
+    const ps = Array.from({ length: totalRounds }, () =>
+      generateFactoringProblem(DIFF_PARAMS[effectiveDiff].maxN)
+    );
     setAllProblems(ps);
     setCurrentIdx(0);
     setResults([]);

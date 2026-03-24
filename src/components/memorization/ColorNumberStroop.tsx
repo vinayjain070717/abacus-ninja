@@ -156,7 +156,7 @@ export default function ColorNumberStroop({
 
   const startGame = () => {
     const n = totalRounds;
-    const ps = generateAllProblems(n, effectiveDiff);
+    const ps = generateAllProblems(n);
     setAllProblems(ps);
     setCurrentIdx(0);
     setResults([]);

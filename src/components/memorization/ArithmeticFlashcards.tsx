@@ -13,7 +13,7 @@ const DIFF_PARAMS = {
   hard: { ops: ['+', '-', '*', '/'] as const, maxVal: 100 },
 } as const;
 
-type Op = (typeof DIFF_PARAMS.easy.ops)[number];
+type Op = '+' | '-' | '*' | '/';
 
 function randomInt(min: number, max: number): number {
   return min + Math.floor(Math.random() * (max - min + 1));
@@ -73,7 +73,7 @@ export default function ArithmeticFlashcards({
   const inputRef = useRef<HTMLInputElement>(null);
   const countsRef = useRef({ correct: 0, attempted: 0 });
   const sprintEndedRef = useRef(false);
-  const paramsRef = useRef(DIFF_PARAMS.medium);
+  const paramsRef = useRef<{ ops: readonly Op[]; maxVal: number }>(DIFF_PARAMS.medium);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 

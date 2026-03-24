@@ -38,9 +38,9 @@ export default function ChainMultiplication({
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'playing' : 'config');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
-  const [steps, setSteps] = useState(DIFF_PARAMS.medium.steps);
-  const [maxMult, setMaxMult] = useState(DIFF_PARAMS.medium.maxMult);
-  const [speedSec, setSpeedSec] = useState(DIFF_PARAMS.medium.speedSec);
+  const [steps, setSteps] = useState<number>(DIFF_PARAMS.medium.steps);
+  const [maxMult, setMaxMult] = useState<number>(DIFF_PARAMS.medium.maxMult);
+  const [speedSec, setSpeedSec] = useState<number>(DIFF_PARAMS.medium.speedSec);
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 6);
 
   const [chain, setChain] = useState<MultiplyChain | null>(() => {

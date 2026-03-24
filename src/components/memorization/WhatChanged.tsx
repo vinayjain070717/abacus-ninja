@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Difficulty } from '../../config/appConfig';
 import { generateWhatChangedGrid, type WhatChangedProblem } from '../../utils/problemGenerator';
-import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
 const DIFF_PARAMS = {
@@ -26,7 +25,7 @@ export default function WhatChanged({ worksheetMode, onComplete }: {
   onComplete?: (score: number, total: number) => void;
 }) {
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'memorize' : 'config');
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [difficulty] = useState<Difficulty>('medium');
   const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
   const [gridSize, setGridSize] = useState(4);
   const [changesCount, setChangesCount] = useState(4);

@@ -3,12 +3,6 @@ import type { Difficulty } from '../../config/appConfig';
 import { generateOddOneOut, type OddOneOutProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 
-const DIFF_PARAMS = {
-  easy: { optionCount: 4 },
-  medium: { optionCount: 5 },
-  hard: { optionCount: 6 },
-} as const;
-
 type Phase = 'config' | 'playing' | 'results';
 
 interface RoundResult {
@@ -23,14 +17,11 @@ export default function OddOneOut({ worksheetMode, onComplete }: {
 }) {
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'playing' : 'config');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 8);
 
   const [allProblems, setAllProblems] = useState<OddOneOutProblem[]>(() =>
     worksheetMode
-      ? Array.from({ length: worksheetMode.rounds }, () =>
-          generateOddOneOut(DIFF_PARAMS[worksheetMode.difficulty ?? 'medium'].optionCount)
-        )
+      ? Array.from({ length: worksheetMode.rounds }, () => generateOddOneOut())
       : []
   );
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -40,8 +31,7 @@ export default function OddOneOut({ worksheetMode, onComplete }: {
   const problem = allProblems[currentIdx];
 
   const startGame = () => {
-    const oc = DIFF_PARAMS[effectiveDiff].optionCount;
-    const ps = Array.from({ length: totalRounds }, () => generateOddOneOut(oc));
+    const ps = Array.from({ length: totalRounds }, () => generateOddOneOut());
     setAllProblems(ps);
     setCurrentIdx(0);
     setResults([]);

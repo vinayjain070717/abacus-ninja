@@ -4,12 +4,6 @@ import { generateMagicSquare, type MagicSquareProblem } from '../../utils/proble
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
-const DIFF_PARAMS = {
-  easy: { blanks: 3 },
-  medium: { blanks: 5 },
-  hard: { blanks: 7 },
-} as const;
-
 type Phase = 'config' | 'playing' | 'feedback' | 'results';
 
 interface RoundResult {
@@ -36,14 +30,11 @@ export default function MagicSquare({ worksheetMode, onComplete }: {
 }) {
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'playing' : 'config');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 5);
 
   const [allProblems, setAllProblems] = useState<MagicSquareProblem[]>(() =>
     worksheetMode
-      ? Array.from({ length: worksheetMode.rounds }, () =>
-          generateMagicSquare(DIFF_PARAMS[worksheetMode.difficulty ?? 'medium'].blanks)
-        )
+      ? Array.from({ length: worksheetMode.rounds }, () => generateMagicSquare())
       : []
   );
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -75,8 +66,7 @@ export default function MagicSquare({ worksheetMode, onComplete }: {
   };
 
   const startGame = () => {
-    const b = DIFF_PARAMS[effectiveDiff].blanks;
-    const ps = Array.from({ length: totalRounds }, () => generateMagicSquare(b));
+    const ps = Array.from({ length: totalRounds }, () => generateMagicSquare());
     setAllProblems(ps);
     setCurrentIdx(0);
     setInputs({});

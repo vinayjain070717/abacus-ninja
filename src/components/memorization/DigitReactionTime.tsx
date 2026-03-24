@@ -32,7 +32,7 @@ export default function DigitReactionTime({
   const [phase, setPhase] = useState<Phase>(worksheetMode ? 'playing' : 'config');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
-  const [displayMs, setDisplayMs] = useState(DIFF_PARAMS.medium.displayMs);
+  const [displayMs, setDisplayMs] = useState<number>(DIFF_PARAMS.medium.displayMs);
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 15);
 
   const [currentDigit, setCurrentDigit] = useState<number | null>(null);
