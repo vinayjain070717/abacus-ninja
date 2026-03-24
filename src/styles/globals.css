@@ -1,0 +1,86 @@
+@import "tailwindcss";
+@import "./print.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
+  --color-accent: #22c55e;
+  --color-accent-dark: #16a34a;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-surface: #1e293b;
+  --color-surface-light: #334155;
+  --color-bg: #0f172a;
+  --color-bg-light: #1e293b;
+  /* lightPalette — use with bg-light-palette-* / text-light-palette-* when needed */
+  --color-light-palette-background: #f8fafc;
+  --color-light-palette-surface: #ffffff;
+  --color-light-palette-surface-light: #f1f5f9;
+  --color-light-palette-text: #0f172a;
+  --color-light-palette-text-muted: #64748b;
+  --color-light-palette-primary: #2563eb;
+  --color-light-palette-accent: #10b981;
+}
+
+.light {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-light: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+  --color-bg: #f8fafc;
+  --color-bg-light: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-light: #f1f5f9;
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-accent: #10b981;
+  --color-accent-dark: #059669;
+}
+
+body {
+  @apply bg-bg text-gray-100 min-h-screen antialiased;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+html.light body {
+  color: var(--text-primary);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  z-index: 100;
+  padding: 8px 16px;
+  background: #6366f1;
+  color: white;
+  transition: top 0.2s;
+}
+.skip-to-content:focus {
+  top: 0;
+}
