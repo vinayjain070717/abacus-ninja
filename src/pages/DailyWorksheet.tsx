@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 import { generateWorksheet, type Worksheet } from '../utils/worksheetGenerator';
 import { APP_CONFIG, getBrainGameLabel, getWorksheetGameConfig, levelToDifficulty, type BrainBenefit } from '../config/appConfig';
 import InfoTooltip from '../components/shared/InfoTooltip';
+import ErrorBoundary from '../components/shared/ErrorBoundary';
 import { formatTime, calculatePercentage, getGrade } from '../utils/scoring';
 import { generateMemorySequence } from '../utils/problemGenerator';
 import DetailedReport from '../components/shared/DetailedReport';
@@ -18,59 +20,59 @@ import NumberSequence from '../components/memorization/NumberSequence';
 import NumberPairMatch from '../components/memorization/NumberPairMatch';
 import NumberSorting from '../components/memorization/NumberSorting';
 
-const RunningTotal = lazy(() => import('../components/memorization/RunningTotal'));
-const EstimationStation = lazy(() => import('../components/memorization/EstimationStation'));
-const PercentageSnap = lazy(() => import('../components/memorization/PercentageSnap'));
-const FractionToDecimal = lazy(() => import('../components/memorization/FractionToDecimal'));
-const DoubleHalveChain = lazy(() => import('../components/memorization/DoubleHalveChain'));
-const TimesTableSprint = lazy(() => import('../components/memorization/TimesTableSprint'));
-const DigitSpanOperation = lazy(() => import('../components/memorization/DigitSpanOperation'));
-const NBackNumbers = lazy(() => import('../components/memorization/NBackNumbers'));
-const WhatChanged = lazy(() => import('../components/memorization/WhatChanged'));
-const MagicSquare = lazy(() => import('../components/memorization/MagicSquare'));
-const NumberCrossword = lazy(() => import('../components/memorization/NumberCrossword'));
-const OddOneOut = lazy(() => import('../components/memorization/OddOneOut'));
-const BaseConversion = lazy(() => import('../components/memorization/BaseConversion'));
-const KenKenPuzzle = lazy(() => import('../components/memorization/KenKenPuzzle'));
-const PrimeOrNot = lazy(() => import('../components/memorization/PrimeOrNot'));
-const CountdownNumbers = lazy(() => import('../components/memorization/CountdownNumbers'));
-const NumberBingo = lazy(() => import('../components/memorization/NumberBingo'));
-const ClosestTo100 = lazy(() => import('../components/memorization/ClosestTo100'));
-const SquareRootSprint = lazy(() => import('../components/memorization/SquareRootSprint'));
-const SpeedFactoring = lazy(() => import('../components/memorization/SpeedFactoring'));
-const ComplementTo100 = lazy(() => import('../components/memorization/ComplementTo100'));
-const PercentageChange = lazy(() => import('../components/memorization/PercentageChange'));
-const GcdLcmSprint = lazy(() => import('../components/memorization/GcdLcmSprint'));
-const DigitSumChain = lazy(() => import('../components/memorization/DigitSumChain'));
-const VedicMathDrills = lazy(() => import('../components/memorization/VedicMathDrills'));
-const PowersOf2 = lazy(() => import('../components/memorization/PowersOf2'));
-const DualNBack = lazy(() => import('../components/memorization/DualNBack'));
-const SimonNumbers = lazy(() => import('../components/memorization/SimonNumbers'));
-const AuditoryMemory = lazy(() => import('../components/memorization/AuditoryMemory'));
-const CalendarCalculation = lazy(() => import('../components/memorization/CalendarCalculation'));
-const RomanNumerals = lazy(() => import('../components/memorization/RomanNumerals'));
-const NumberAnagram = lazy(() => import('../components/memorization/NumberAnagram'));
-const MatrixPattern = lazy(() => import('../components/memorization/MatrixPattern'));
-const MentalDivisionRace = lazy(() => import('../components/memorization/MentalDivisionRace'));
-const NumberBondSnap = lazy(() => import('../components/memorization/NumberBondSnap'));
-const OrderOfOperations = lazy(() => import('../components/memorization/OrderOfOperations'));
-const EquationBuilder = lazy(() => import('../components/memorization/EquationBuilder'));
-const UnitConversion = lazy(() => import('../components/memorization/UnitConversion'));
-const FibonacciSprint = lazy(() => import('../components/memorization/FibonacciSprint'));
-const TaxTipCalculator = lazy(() => import('../components/memorization/TaxTipCalculator'));
-const ClockAngle = lazy(() => import('../components/memorization/ClockAngle'));
-const ProbabilitySnap = lazy(() => import('../components/memorization/ProbabilitySnap'));
-const BinaryArithmetic = lazy(() => import('../components/memorization/BinaryArithmetic'));
-const ColorNumberStroop = lazy(() => import('../components/memorization/ColorNumberStroop'));
-const SpatialMemoryGrid = lazy(() => import('../components/memorization/SpatialMemoryGrid'));
-const BackwardsCounting = lazy(() => import('../components/memorization/BackwardsCounting'));
-const MemoryPalaceNumbers = lazy(() => import('../components/memorization/MemoryPalaceNumbers'));
-const RapidOddEven = lazy(() => import('../components/memorization/RapidOddEven'));
-const GreaterThanChain = lazy(() => import('../components/memorization/GreaterThanChain'));
-const ArithmeticFlashcards = lazy(() => import('../components/memorization/ArithmeticFlashcards'));
-const DigitReactionTime = lazy(() => import('../components/memorization/DigitReactionTime'));
-const MissingDigit = lazy(() => import('../components/memorization/MissingDigit'));
-const ChainMultiplication = lazy(() => import('../components/memorization/ChainMultiplication'));
+const RunningTotal = lazyWithRetry(() => import('../components/memorization/RunningTotal'));
+const EstimationStation = lazyWithRetry(() => import('../components/memorization/EstimationStation'));
+const PercentageSnap = lazyWithRetry(() => import('../components/memorization/PercentageSnap'));
+const FractionToDecimal = lazyWithRetry(() => import('../components/memorization/FractionToDecimal'));
+const DoubleHalveChain = lazyWithRetry(() => import('../components/memorization/DoubleHalveChain'));
+const TimesTableSprint = lazyWithRetry(() => import('../components/memorization/TimesTableSprint'));
+const DigitSpanOperation = lazyWithRetry(() => import('../components/memorization/DigitSpanOperation'));
+const NBackNumbers = lazyWithRetry(() => import('../components/memorization/NBackNumbers'));
+const WhatChanged = lazyWithRetry(() => import('../components/memorization/WhatChanged'));
+const MagicSquare = lazyWithRetry(() => import('../components/memorization/MagicSquare'));
+const NumberCrossword = lazyWithRetry(() => import('../components/memorization/NumberCrossword'));
+const OddOneOut = lazyWithRetry(() => import('../components/memorization/OddOneOut'));
+const BaseConversion = lazyWithRetry(() => import('../components/memorization/BaseConversion'));
+const KenKenPuzzle = lazyWithRetry(() => import('../components/memorization/KenKenPuzzle'));
+const PrimeOrNot = lazyWithRetry(() => import('../components/memorization/PrimeOrNot'));
+const CountdownNumbers = lazyWithRetry(() => import('../components/memorization/CountdownNumbers'));
+const NumberBingo = lazyWithRetry(() => import('../components/memorization/NumberBingo'));
+const ClosestTo100 = lazyWithRetry(() => import('../components/memorization/ClosestTo100'));
+const SquareRootSprint = lazyWithRetry(() => import('../components/memorization/SquareRootSprint'));
+const SpeedFactoring = lazyWithRetry(() => import('../components/memorization/SpeedFactoring'));
+const ComplementTo100 = lazyWithRetry(() => import('../components/memorization/ComplementTo100'));
+const PercentageChange = lazyWithRetry(() => import('../components/memorization/PercentageChange'));
+const GcdLcmSprint = lazyWithRetry(() => import('../components/memorization/GcdLcmSprint'));
+const DigitSumChain = lazyWithRetry(() => import('../components/memorization/DigitSumChain'));
+const VedicMathDrills = lazyWithRetry(() => import('../components/memorization/VedicMathDrills'));
+const PowersOf2 = lazyWithRetry(() => import('../components/memorization/PowersOf2'));
+const DualNBack = lazyWithRetry(() => import('../components/memorization/DualNBack'));
+const SimonNumbers = lazyWithRetry(() => import('../components/memorization/SimonNumbers'));
+const AuditoryMemory = lazyWithRetry(() => import('../components/memorization/AuditoryMemory'));
+const CalendarCalculation = lazyWithRetry(() => import('../components/memorization/CalendarCalculation'));
+const RomanNumerals = lazyWithRetry(() => import('../components/memorization/RomanNumerals'));
+const NumberAnagram = lazyWithRetry(() => import('../components/memorization/NumberAnagram'));
+const MatrixPattern = lazyWithRetry(() => import('../components/memorization/MatrixPattern'));
+const MentalDivisionRace = lazyWithRetry(() => import('../components/memorization/MentalDivisionRace'));
+const NumberBondSnap = lazyWithRetry(() => import('../components/memorization/NumberBondSnap'));
+const OrderOfOperations = lazyWithRetry(() => import('../components/memorization/OrderOfOperations'));
+const EquationBuilder = lazyWithRetry(() => import('../components/memorization/EquationBuilder'));
+const UnitConversion = lazyWithRetry(() => import('../components/memorization/UnitConversion'));
+const FibonacciSprint = lazyWithRetry(() => import('../components/memorization/FibonacciSprint'));
+const TaxTipCalculator = lazyWithRetry(() => import('../components/memorization/TaxTipCalculator'));
+const ClockAngle = lazyWithRetry(() => import('../components/memorization/ClockAngle'));
+const ProbabilitySnap = lazyWithRetry(() => import('../components/memorization/ProbabilitySnap'));
+const BinaryArithmetic = lazyWithRetry(() => import('../components/memorization/BinaryArithmetic'));
+const ColorNumberStroop = lazyWithRetry(() => import('../components/memorization/ColorNumberStroop'));
+const SpatialMemoryGrid = lazyWithRetry(() => import('../components/memorization/SpatialMemoryGrid'));
+const BackwardsCounting = lazyWithRetry(() => import('../components/memorization/BackwardsCounting'));
+const MemoryPalaceNumbers = lazyWithRetry(() => import('../components/memorization/MemoryPalaceNumbers'));
+const RapidOddEven = lazyWithRetry(() => import('../components/memorization/RapidOddEven'));
+const GreaterThanChain = lazyWithRetry(() => import('../components/memorization/GreaterThanChain'));
+const ArithmeticFlashcards = lazyWithRetry(() => import('../components/memorization/ArithmeticFlashcards'));
+const DigitReactionTime = lazyWithRetry(() => import('../components/memorization/DigitReactionTime'));
+const MissingDigit = lazyWithRetry(() => import('../components/memorization/MissingDigit'));
+const ChainMultiplication = lazyWithRetry(() => import('../components/memorization/ChainMultiplication'));
 
 type Phase = 'start' | 'addSub' | 'game1' | 'multiply' | 'game2' | 'division' | 'game3' | 'game4' | 'game5' | 'results';
 
@@ -359,14 +361,16 @@ tr:nth-child(even){background:#f9f9f9}
           </div>
           <div className="text-lg font-mono text-primary">{formatTime(seconds)}</div>
         </div>
-        <Suspense fallback={<div className="text-center text-gray-400">Loading game...</div>}>
-          <WorksheetGameDispatcher
-            gameType={gameType}
-            config={config}
-            level={level}
-            onComplete={(score, total) => handleBrainGameComplete(phase, gameType, score, total)}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<div className="text-center text-gray-400">Loading game...</div>}>
+            <WorksheetGameDispatcher
+              gameType={gameType}
+              config={config}
+              level={level}
+              onComplete={(score, total) => handleBrainGameComplete(phase, gameType, score, total)}
+            />
+          </Suspense>
+        </ErrorBoundary>
         <button
           onClick={() => handleBrainGameComplete(phase, gameType, 0, 0)}
           className="mt-4 w-full py-2 bg-surface-light rounded-lg font-semibold text-gray-400 hover:bg-gray-600 hover:text-white text-sm"
