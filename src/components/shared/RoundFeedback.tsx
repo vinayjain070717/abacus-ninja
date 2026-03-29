@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { APP_CONFIG } from '../../config/appConfig';
+import { SoundManager } from '../../utils/sounds';
+import { useAppStore } from '../../store/appStore';
 
 interface RoundFeedbackProps {
   correct: boolean;
@@ -9,13 +11,18 @@ interface RoundFeedbackProps {
 }
 
 export default function RoundFeedback({ correct, onNext, children, isLastRound }: RoundFeedbackProps) {
-  const duration = APP_CONFIG.ui.roundFeedbackMs;
+  const gameMode = useAppStore((s) => s.gameMode);
+  const multiplier = APP_CONFIG.gameModes[gameMode]?.feedbackMultiplier ?? 1;
+  const baseDuration = APP_CONFIG.ui.roundFeedbackMs;
+  const duration = multiplier === 0 ? Infinity : Math.round(baseDuration * multiplier);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
 
   useEffect(() => {
+    SoundManager.play(correct ? 'correct' : 'wrong');
+    if (duration === Infinity) return;
     const start = Date.now();
     timerRef.current = setInterval(() => {
       const ms = Date.now() - start;
@@ -28,9 +35,9 @@ export default function RoundFeedback({ correct, onNext, children, isLastRound }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [duration]);
+  }, [duration, correct]);
 
-  const progress = Math.min(elapsed / duration, 1);
+  const progress = duration === Infinity ? 0 : Math.min(elapsed / duration, 1);
 
   return (
     <div

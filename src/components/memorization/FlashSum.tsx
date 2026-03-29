@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateFlashSumProblem, type FlashSumProblem } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import DifficultySelector from '../shared/DifficultySelector';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 type Phase = 'config' | 'showing' | 'input' | 'feedback' | 'results';
 
@@ -38,6 +41,7 @@ export default function FlashSum({ worksheetMode, onComplete }: {
   const [answer, setAnswer] = useState('');
   const [results, setResults] = useState<RoundResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
 
   useEffect(() => {
     if (worksheetMode) return;
@@ -57,6 +61,7 @@ export default function FlashSum({ worksheetMode, onComplete }: {
   }, [phase, currentIdx, displayTime, allProblems.length]);
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setCount(p.count);
     setMaxDigits(p.maxDigits);
@@ -88,27 +93,25 @@ export default function FlashSum({ worksheetMode, onComplete }: {
   };
 
   if (phase === 'results') {
-    const score = results.filter(r => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Flash Sum Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{results.length}</div>
-        </div>
-        <div className="space-y-2 mb-6">
-          {results.map((r, i) => (
-            <div key={i} className={`p-3 rounded-lg text-sm font-mono flex justify-between ${r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'}`}>
-              <span>{r.problem.numbers.join(' + ')} = {r.problem.answer}</span>
-              {!r.correct && <span className="text-red-400">You: {r.userAnswer ?? '—'}</span>}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          {!worksheetMode && <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Flash Sum Results',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Flash Sum', icon: '⚡',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: `${r.problem.numbers.join(' + ')} = ?`,
+          correct: r.correct,
+          correctAnswer: String(r.problem.answer),
+          userAnswer: r.userAnswer != null ? String(r.userAnswer) : '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'showing' && allProblems.length > 0) {

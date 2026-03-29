@@ -11,6 +11,7 @@ import Tutorials from './pages/Tutorials';
 import CustomWorksheet from './pages/CustomWorksheet';
 import TimedChallenge from './pages/TimedChallenge';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import Benefits from './pages/Benefits';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/abacus" element={<AbacusVisualizer />} />
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/timed-challenge" element={<TimedChallenge />} />
+          <Route path="/benefits" element={<Benefits />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
         </Route>
       </Routes>

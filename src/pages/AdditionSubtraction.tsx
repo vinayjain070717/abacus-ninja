@@ -3,7 +3,9 @@ import { useAppStore } from '../store/appStore';
 import { generateAddSubProblem, type AddSubProblem } from '../utils/problemGenerator';
 import { APP_CONFIG, type BrainBenefit } from '../config/appConfig';
 import InfoTooltip from '../components/shared/InfoTooltip';
-import { formatTime, calculatePercentage, getGrade } from '../utils/scoring';
+import { formatTime } from '../utils/scoring';
+import DetailedReport from '../components/shared/DetailedReport';
+import type { ReportData } from '../types/report';
 
 type Mode = 'config' | 'flash' | 'static' | 'answer' | 'results';
 type OpMode = 'mixed' | 'add' | 'sub';
@@ -125,55 +127,34 @@ export default function AdditionSubtraction() {
     if (e.key === 'Enter') submitAnswer();
   };
 
-  const correctCount = results.filter((r) => r.correct).length;
-
   if (mode === 'results') {
-    const pct = calculatePercentage(correctCount, results.length);
-    const grade = getGrade(pct);
+    const lvlIdx = Math.min(digits, APP_CONFIG.idealTimes.addSubPerProblem.length) - 1;
+    const idealPerProblem = APP_CONFIG.idealTimes.addSubPerProblem[lvlIdx];
+    const reportData: ReportData = {
+      title: 'Addition & Subtraction Results',
+      subtitle: `${digits}-digit ${practiceMode === 'flash' ? 'Flash Anzan' : 'Static'} · ${results.length} problems`,
+      totalTimeSec: seconds,
+      sections: [{
+        label: 'Addition & Subtraction',
+        icon: '±',
+        score: results.filter((r) => r.correct).length,
+        total: results.length,
+        timeSpentSec: seconds,
+        idealTimeSec: idealPerProblem * results.length,
+        details: results.map((r) => ({
+          display: `${r.problem.display} = ?`,
+          correct: r.correct,
+          correctAnswer: String(r.problem.answer),
+          userAnswer: r.userAnswer != null ? String(r.userAnswer) : '—',
+        })),
+      }],
+    };
     return (
-      <div className="max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold mb-4 text-center">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6 text-center">
-          <div className="text-4xl font-bold mb-2">
-            {correctCount}/{results.length}{' '}
-            <span className="text-lg text-gray-400">({pct}%)</span>
-          </div>
-          <div className={`text-lg font-semibold ${grade.color}`}>{grade.label}</div>
-          <div className="text-gray-400 mt-2">Time: {formatTime(seconds)}</div>
-        </div>
-
-        <div className="space-y-2 mb-6">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`flex justify-between items-center p-3 rounded-lg ${
-                r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'
-              }`}
-            >
-              <span className="text-sm font-mono">{r.problem.display}</span>
-              <div className="text-right">
-                <span className="text-sm font-semibold">
-                  = {r.problem.answer}
-                </span>
-                {!r.correct && (
-                  <span className="text-red-400 text-sm ml-3">
-                    You: {r.userAnswer ?? '—'}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-3 justify-center">
-          <button onClick={() => { setResults([]); startPractice(); }} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">
-            New Set
-          </button>
-          <button onClick={() => setMode('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">
-            Change Settings
-          </button>
-        </div>
-      </div>
+      <DetailedReport
+        data={reportData}
+        onPlayAgain={() => { setResults([]); startPractice(); }}
+        onSettings={() => setMode('config')}
+      />
     );
   }
 

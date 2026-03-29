@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import { generateNumberCrossword, type NumberCrosswordProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
@@ -45,7 +48,10 @@ export default function NumberCrossword({
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const acrossRef = useRef<HTMLInputElement>(null);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const gs = DIFF_PARAMS[effectiveDiff].gridSize;
     const ps = Array.from({ length: totalRounds }, () => generateNumberCrossword(gs));
     setAllProblems(ps);
@@ -165,53 +171,25 @@ export default function NumberCrossword({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-lg mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Number crossword — results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">
-            {score}/{results.length}
-          </div>
-        </div>
-        <div className="space-y-2 mb-6 text-left max-h-72 overflow-y-auto text-sm">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg ${
-                r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'
-              }`}
-            >
-              <div>Across {r.problem.acrossClue} → {r.problem.acrossAnswer}</div>
-              <div>Down {r.problem.downClue} → {r.problem.downAnswer}</div>
-              {!r.correct && (
-                <div className="text-gray-400 mt-1">
-                  You: {r.across || '—'} / {r.down || '—'}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark text-white"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Number Crossword',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Number Crossword', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   return (

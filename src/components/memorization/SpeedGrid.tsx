@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateNumberGrid } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 
 type Phase = 'config' | 'showing' | 'input' | 'results';
@@ -46,7 +49,10 @@ export default function SpeedGrid({ worksheetMode, onComplete }: {
     setDisplayTime(p.displayTime);
   }, [difficulty, worksheetMode]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     const size = p.gridSize;
     const dt = p.displayTime;
@@ -113,31 +119,33 @@ export default function SpeedGrid({ worksheetMode, onComplete }: {
   };
 
   if (phase === 'results') {
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
     const total = gridSize * gridSize;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-4">{score}/{total}</div>
-          <div className="inline-grid gap-1" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)` }}>
-            {grid.map((row, r) =>
-              row.map((val, c) => {
-                const match = parseInt(userGrid[r][c]) === val;
-                return (
-                  <div key={`${r}-${c}`} className={`w-10 h-10 flex items-center justify-center rounded text-lg font-bold ${match ? 'bg-green-700' : 'bg-red-700'}`}>
-                    {val}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>
-        </div>
-      </div>
-    );
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const details = [];
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        const isCorrect = parseInt(userGrid[r][c]) === grid[r][c];
+        details.push({
+          display: `Cell (${r + 1},${c + 1})`,
+          correct: isCorrect,
+          correctAnswer: String(grid[r][c]),
+          userAnswer: userGrid[r][c] || '—',
+        });
+      }
+    }
+    const reportData: ReportData = {
+      title: 'Speed Grid',
+      subtitle: `${effectiveDiff} · ${gridSize}×${gridSize} grid`,
+      totalTimeSec,
+      sections: [{
+        label: 'Speed Grid', icon: '⚡',
+        score, total,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * Math.max(1, Math.ceil(total / 4)),
+        details,
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={() => setPhase('config')} />;
   }
 
   if (phase === 'showing') {

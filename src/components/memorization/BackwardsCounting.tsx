@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -53,7 +56,10 @@ export default function BackwardsCounting({
   const roundRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setProblem(generateProblem(p.step, p.startMax));
     setAnswer('');
@@ -131,25 +137,25 @@ export default function BackwardsCounting({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Backwards Counting</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">
-            {score}/{results.length}
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark text-white">
-            Play Again
-          </button>
-          <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">
-            Settings
-          </button>
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Backwards Counting',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Backwards Counting', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing') {

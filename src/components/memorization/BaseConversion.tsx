@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import { generateBaseConversion, type BaseConversionProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 const DIFF_PARAMS = {
   easy: { maxNumber: 15 },
@@ -60,10 +63,12 @@ export default function BaseConversion({ worksheetMode, onComplete }: {
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
 
   const problem = allProblems[currentIdx];
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const mx = DIFF_PARAMS[effectiveDiff].maxNumber;
     const ps = Array.from({ length: totalRounds }, () => generateBaseConversion(mx));
     setAllProblems(ps);
@@ -156,42 +161,25 @@ export default function BaseConversion({ worksheetMode, onComplete }: {
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary">Base Conversion</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6 border border-gray-700/50">
-          <div className="text-4xl font-bold mb-2 text-primary">
-            {score}/{results.length}
-          </div>
-          <p className="text-gray-400 text-sm">Rounds correct</p>
-        </div>
-        <div className="space-y-2 mb-6 text-left">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm font-mono border ${
-                r.correct ? 'bg-green-900/30 border-green-800' : 'bg-red-900/30 border-red-800'
-              }`}
-            >
-              <div className="text-gray-400">{r.problem.question}</div>
-              <div className="text-primary mt-1">Answer: {r.problem.answer}</div>
-              {!r.correct && <div className="text-red-400 mt-1">You: {r.userAnswer || '—'}</div>}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button type="button" onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button type="button" onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Base Conversion',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Base Conversion', icon: '🔄',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: r.problem.question,
+          correct: r.correct,
+          correctAnswer: r.problem.answer,
+          userAnswer: r.userAnswer || '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   return (

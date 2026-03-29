@@ -4,6 +4,8 @@ import { APP_CONFIG, getBrainGameLabel, getWorksheetGameConfig, levelToDifficult
 import InfoTooltip from '../components/shared/InfoTooltip';
 import { formatTime, calculatePercentage, getGrade } from '../utils/scoring';
 import { generateMemorySequence } from '../utils/problemGenerator';
+import DetailedReport from '../components/shared/DetailedReport';
+import type { ReportData, ReportSection, ReportDetail } from '../types/report';
 
 import SpeedGrid from '../components/memorization/SpeedGrid';
 import MentalMathChain from '../components/memorization/MentalMathChain';
@@ -80,7 +82,7 @@ function getNextPhase(current: Phase): Phase {
   return PHASE_ORDER[Math.min(idx + 1, PHASE_ORDER.length - 1)];
 }
 
-interface BrainGameResult { game: string; score: number; total: number }
+interface BrainGameResult { game: string; score: number; total: number; timeSec: number }
 
 export default function DailyWorksheet() {
   const [phase, setPhase] = useState<Phase>('start');
@@ -131,7 +133,8 @@ export default function DailyWorksheet() {
   };
 
   const handleBrainGameComplete = (gamePhase: Phase, gameName: string, score: number, total: number) => {
-    setBrainGameScores((prev) => [...prev, { game: gameName, score, total }]);
+    const elapsed = seconds - sectionStart;
+    setBrainGameScores((prev) => [...prev, { game: gameName, score, total, timeSec: elapsed }]);
     advancePhase(gamePhase);
   };
 
@@ -186,45 +189,92 @@ export default function DailyWorksheet() {
 
   if (phase === 'results') {
     if (!worksheet) return null;
-    let asc = 0, mc = 0, dc = 0;
-    worksheet.addSubProblems.forEach((p, i) => { if (parseInt(addSubAnswers[i]) === p.answer) asc++; });
-    worksheet.multiplyProblems.forEach((p, i) => { if (parseInt(multiplyAnswers[i]) === p.answer) mc++; });
-    worksheet.divisionProblems.forEach((p, i) => { if (parseInt(divisionAnswers[i]) === p.quotient) dc++; });
 
-    const totalCorrect = asc + mc + dc;
-    const totalProblems = APP_CONFIG.worksheet.addSubCount + APP_CONFIG.worksheet.multiplyCount + APP_CONFIG.worksheet.divisionCount;
-    const pct = calculatePercentage(totalCorrect, totalProblems);
-    const grade = getGrade(pct);
+    const addSubDetails: ReportDetail[] = worksheet.addSubProblems.map((p, i) => {
+      const userVal = parseInt(addSubAnswers[i]);
+      const correct = userVal === p.answer;
+      return { display: p.display, correct, correctAnswer: String(p.answer), userAnswer: addSubAnswers[i] || '—' };
+    });
+    const multiplyDetails: ReportDetail[] = worksheet.multiplyProblems.map((p, i) => {
+      const userVal = parseInt(multiplyAnswers[i]);
+      const correct = userVal === p.answer;
+      return { display: p.display, correct, correctAnswer: String(p.answer), userAnswer: multiplyAnswers[i] || '—' };
+    });
+    const divisionDetails: ReportDetail[] = worksheet.divisionProblems.map((p, i) => {
+      const userVal = parseInt(divisionAnswers[i]);
+      const correct = userVal === p.quotient;
+      return { display: p.display, correct, correctAnswer: String(p.quotient), userAnswer: divisionAnswers[i] || '—' };
+    });
 
-    const totalBrainScore = brainGameScores.reduce((s, g) => s + g.score, 0);
-    const totalBrainMax = brainGameScores.reduce((s, g) => s + g.total, 0);
+    const lvlIdx = Math.min(level, APP_CONFIG.worksheet.maxLevel) - 1;
+    const diff = levelToDifficulty(level);
+
+    const sections: ReportSection[] = [
+      {
+        label: 'Addition & Subtraction',
+        icon: '±',
+        score: addSubDetails.filter((d) => d.correct).length,
+        total: APP_CONFIG.worksheet.addSubCount,
+        timeSpentSec: sectionTimes.addSub || 0,
+        idealTimeSec: APP_CONFIG.idealTimes.addSubPerProblem[lvlIdx] * APP_CONFIG.worksheet.addSubCount,
+        details: addSubDetails,
+      },
+      {
+        label: 'Multiplication',
+        icon: '×',
+        score: multiplyDetails.filter((d) => d.correct).length,
+        total: APP_CONFIG.worksheet.multiplyCount,
+        timeSpentSec: sectionTimes.multiply || 0,
+        idealTimeSec: APP_CONFIG.idealTimes.multiplyPerProblem[lvlIdx] * APP_CONFIG.worksheet.multiplyCount,
+        details: multiplyDetails,
+      },
+      {
+        label: 'Division',
+        icon: '÷',
+        score: divisionDetails.filter((d) => d.correct).length,
+        total: APP_CONFIG.worksheet.divisionCount,
+        timeSpentSec: sectionTimes.division || 0,
+        idealTimeSec: APP_CONFIG.idealTimes.divisionPerProblem[lvlIdx] * APP_CONFIG.worksheet.divisionCount,
+        details: divisionDetails,
+      },
+      ...brainGameScores.map((bg) => ({
+        label: getBrainGameLabel(bg.game),
+        icon: '🧠',
+        score: bg.score,
+        total: bg.total,
+        timeSpentSec: bg.timeSec,
+        idealTimeSec: (APP_CONFIG.idealTimes.brainGamePerRound[diff] || 12) * Math.max(bg.total, 1),
+      })),
+    ];
+
+    const reportData: ReportData = {
+      title: 'Worksheet Complete!',
+      subtitle: `Level ${level} · ${new Date().toLocaleDateString()}`,
+      totalTimeSec: seconds,
+      sections,
+    };
 
     const handlePrint = () => {
-      const brainRows = brainGameScores
-        .map((bg) => `<tr><td style="padding:4px 8px;text-align:left">${getBrainGameLabel(bg.game)}</td><td style="padding:4px 8px;text-align:right;font-family:monospace">${bg.score}/${bg.total}</td></tr>`)
+      const totalCorrect = sections.reduce((s, sec) => s + sec.score, 0);
+      const totalProblems = sections.reduce((s, sec) => s + sec.total, 0);
+      const pct = calculatePercentage(totalCorrect, totalProblems);
+      const grade = getGrade(pct);
+      const sectionRows = sections
+        .map((sec) => `<tr><td style="padding:6px 8px">${sec.icon} ${sec.label}</td><td style="padding:6px 8px;text-align:right;font-family:monospace">${sec.score}/${sec.total}</td><td style="padding:6px 8px;text-align:right;color:#888">${formatTime(sec.timeSpentSec)}</td><td style="padding:6px 8px;text-align:right;color:#aaa">${formatTime(sec.idealTimeSec)}</td></tr>`)
         .join('');
       const html = `<!DOCTYPE html><html><head><title>Worksheet Results - ${APP_CONFIG.app.name}</title>
 <style>body{font-family:'Segoe UI',system-ui,sans-serif;max-width:600px;margin:40px auto;color:#222}
 h1{font-size:24px;margin-bottom:4px}h2{font-size:18px;color:#666;margin-top:0}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
-.card{border:1px solid #ddd;border-radius:8px;padding:12px;text-align:center}
-.card .val{font-size:20px;font-weight:700}.card .lbl{font-size:12px;color:#888}
-.card .time{font-size:11px;color:#aaa}
-table{width:100%;border-collapse:collapse;margin-top:8px}
-tr:nth-child(even){background:#f5f5f5}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th{text-align:left;padding:6px 8px;border-bottom:2px solid #ddd;font-size:12px;color:#888}
+td{border-bottom:1px solid #eee}
+tr:nth-child(even){background:#f9f9f9}
 .grade{font-size:22px;font-weight:700;margin:12px 0}
 </style></head><body>
 <h1>Worksheet Results</h1><h2>Level ${level} · ${new Date().toLocaleDateString()}</h2>
 <p style="font-size:28px;font-weight:700;margin:16px 0">${formatTime(seconds)}</p>
 <p class="grade" style="color:${pct >= 90 ? '#16a34a' : pct >= 70 ? '#2563eb' : pct >= 50 ? '#f59e0b' : '#ef4444'}">${totalCorrect}/${totalProblems} (${pct}%) — ${grade.label}</p>
-<div class="grid">
-<div class="card"><div class="val">${asc}/${APP_CONFIG.worksheet.addSubCount}</div><div class="lbl">Add/Sub</div><div class="time">${formatTime(sectionTimes.addSub || 0)}</div></div>
-<div class="card"><div class="val">${mc}/${APP_CONFIG.worksheet.multiplyCount}</div><div class="lbl">Multiply</div><div class="time">${formatTime(sectionTimes.multiply || 0)}</div></div>
-<div class="card"><div class="val">${dc}/${APP_CONFIG.worksheet.divisionCount}</div><div class="lbl">Division</div><div class="time">${formatTime(sectionTimes.division || 0)}</div></div>
-<div class="card"><div class="val">${totalBrainScore}/${totalBrainMax}</div><div class="lbl">Brain Games</div></div>
-</div>
-<h3 style="margin-top:20px;font-size:14px">Brain Games Breakdown</h3>
-<table>${brainRows}</table>
+<table><tr><th>Section</th><th style="text-align:right">Score</th><th style="text-align:right">Your Time</th><th style="text-align:right">Target</th></tr>${sectionRows}</table>
 <p style="margin-top:24px;font-size:11px;color:#aaa;text-align:center">Generated by ${APP_CONFIG.app.name}</p>
 </body></html>`;
       const printWin = window.open('', '_blank', 'width=700,height=800');
@@ -236,61 +286,11 @@ tr:nth-child(even){background:#f5f5f5}
     };
 
     return (
-      <div className="max-w-lg mx-auto text-center">
-        <h2 className="text-3xl font-bold mb-6">Worksheet Complete!</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-5xl font-bold mb-2">{formatTime(seconds)}</div>
-          <div className="text-gray-400 mb-4">Total Time</div>
-
-          <div className={`text-2xl font-bold mb-4 ${grade.color}`}>
-            {totalCorrect}/{totalProblems} ({pct}%) — {grade.label}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-            <div className="bg-surface-light rounded-lg p-3">
-              <div className="font-bold">{asc}/{APP_CONFIG.worksheet.addSubCount}</div>
-              <div className="text-gray-400">Add/Sub</div>
-              <div className="text-xs text-gray-500">{formatTime(sectionTimes.addSub || 0)}</div>
-            </div>
-            <div className="bg-surface-light rounded-lg p-3">
-              <div className="font-bold">{mc}/{APP_CONFIG.worksheet.multiplyCount}</div>
-              <div className="text-gray-400">Multiply</div>
-              <div className="text-xs text-gray-500">{formatTime(sectionTimes.multiply || 0)}</div>
-            </div>
-            <div className="bg-surface-light rounded-lg p-3">
-              <div className="font-bold">{dc}/{APP_CONFIG.worksheet.divisionCount}</div>
-              <div className="text-gray-400">Division</div>
-              <div className="text-xs text-gray-500">{formatTime(sectionTimes.division || 0)}</div>
-            </div>
-            <div className="bg-surface-light rounded-lg p-3">
-              <div className="font-bold">{totalBrainScore}/{totalBrainMax}</div>
-              <div className="text-gray-400">Brain Games</div>
-            </div>
-          </div>
-
-          <div className="bg-surface-light rounded-lg p-3 text-sm">
-            <h4 className="font-bold mb-2 text-gray-300">Brain Games Breakdown</h4>
-            {brainGameScores.map((bg, i) => (
-              <div key={i} className="flex justify-between text-gray-400 py-1">
-                <span>{getBrainGameLabel(bg.game)}</span>
-                <span className="font-mono">{bg.score}/{bg.total}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center flex-wrap">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-          >
-            🖨️ Print Results
-          </button>
-          <button onClick={() => setPhase('start')} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">
-            New Worksheet
-          </button>
-        </div>
-      </div>
+      <DetailedReport
+        data={reportData}
+        onPlayAgain={() => setPhase('start')}
+        onPrint={handlePrint}
+      />
     );
   }
 

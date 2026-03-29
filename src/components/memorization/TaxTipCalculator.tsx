@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -75,7 +78,10 @@ export default function TaxTipCalculator({
 
   const problem = allProblems[currentIdx];
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const percents = DIFF_PARAMS[effectiveDiff].percents;
     const ps = Array.from({ length: totalRounds }, () => makeProblem(percents));
     setAllProblems(ps);
@@ -183,49 +189,25 @@ export default function TaxTipCalculator({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Tax &amp; tip calculator</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">
-            {score}/{results.length}
-          </div>
-          <p className="text-gray-400 text-sm">Within ±${TOLERANCE.toFixed(2)} of the exact total.</p>
-        </div>
-        <div className="space-y-2 mb-6 max-h-64 overflow-y-auto text-left">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm ${
-                r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'
-              }`}
-            >
-              <div className="text-gray-200">{r.problem.display}</div>
-              <div className="font-mono text-gray-400 mt-1">${r.problem.total.toFixed(2)}</div>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold text-white hover:bg-primary-dark"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Tax Tip Calculator',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Tax Tip Calculator', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   return (

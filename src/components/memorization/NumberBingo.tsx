@@ -59,7 +59,10 @@ export default function NumberBingo({
   const [wrongFlash, setWrongFlash] = useState(false);
   const [missedFirstTry, setMissedFirstTry] = useState(false);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const gs = DIFF_PARAMS[effectiveDiff].gridSize;
     sessionGridRef.current = gs;
     const b = generateNumberBingoBoard(gs);

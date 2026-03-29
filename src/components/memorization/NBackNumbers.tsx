@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import { generateNBackSequence, type NBackSequence } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 
@@ -10,6 +13,9 @@ const DIFF_PARAMS = {
   medium: { nBack: 2, seqLength: 18 },
   hard: { nBack: 3, seqLength: 26 },
 } as const;
+
+const STEP_MS = 2000;
+const FEEDBACK_MS = 800;
 
 export default function NBackNumbers({ worksheetMode, onComplete }: {
   worksheetMode?: { rounds: number; difficulty?: Difficulty };
@@ -22,10 +28,12 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
   const [seqLength, setSeqLength] = useState(18);
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 5);
 
+  const wsRounds = worksheetMode?.rounds ?? 0;
+  const wsDiff = worksheetMode?.difficulty ?? 'medium';
   const [roundsData, setRoundsData] = useState<NBackSequence[]>(() =>
     worksheetMode
-      ? Array.from({ length: worksheetMode.rounds }, () => {
-          const p = DIFF_PARAMS[worksheetMode.difficulty ?? 'medium'];
+      ? Array.from({ length: wsRounds }, () => {
+          const p = DIFF_PARAMS[wsDiff];
           return generateNBackSequence(p.seqLength, p.nBack);
         })
       : []
@@ -35,14 +43,12 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
   const [userClicked, setUserClicked] = useState(false);
   const [feedbackType, setFeedbackType] = useState<'correct' | 'wrong' | 'missed' | null>(null);
 
-  const [totalHits, setTotalHits] = useState(0);
-  const [totalOpportunities, setTotalOpportunities] = useState(0);
-  const [roundHits, setRoundHits] = useState(0);
-  const [roundOpportunities, setRoundOpportunities] = useState(0);
-
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const isWorksheet = useRef(!!worksheetMode);
+
+  const hitsRef = useRef({ totalHits: 0, totalOpps: 0, roundHits: 0, roundOpps: 0 });
 
   const sequence = roundsData[roundIdx]?.sequence ?? [];
   const n = roundsData[roundIdx]?.nBack ?? nBack;
@@ -53,49 +59,44 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
 
   useEffect(() => () => clearTimer(), [clearTimer]);
 
-  const isMatch = useCallback((idx: number) => {
-    return idx >= n && sequence[idx] === sequence[idx - n];
-  }, [sequence, n]);
-
+  // Step timer: only depends on phase, stepIndex, roundIdx
   useEffect(() => {
     if (phase !== 'running' || sequence.length === 0) return;
 
     if (stepIndex >= sequence.length) {
-      const newTotalHits = totalHits + roundHits;
-      const newTotalOpps = totalOpportunities + roundOpportunities;
+      const h = hitsRef.current;
+      const newTotalHits = h.totalHits + h.roundHits;
+      const newTotalOpps = h.totalOpps + h.roundOpps;
 
       if (roundIdx + 1 < roundsData.length) {
+        hitsRef.current = { totalHits: newTotalHits, totalOpps: newTotalOpps, roundHits: 0, roundOpps: 0 };
         setRoundIdx((r) => r + 1);
         setStepIndex(0);
-        setRoundHits(0);
-        setRoundOpportunities(0);
         setUserClicked(false);
         setFeedbackType(null);
-        setTotalHits(newTotalHits);
-        setTotalOpportunities(newTotalOpps);
       } else {
-        if (worksheetMode && onCompleteRef.current) {
+        if (isWorksheet.current && onCompleteRef.current) {
           onCompleteRef.current(newTotalHits, Math.max(1, newTotalOpps));
           return;
         }
-        setTotalHits(newTotalHits);
-        setTotalOpportunities(newTotalOpps);
+        hitsRef.current = { ...hitsRef.current, totalHits: newTotalHits, totalOpps: newTotalOpps };
         setPhase('results');
       }
       return;
     }
 
+    const clickedAtStart = userClicked;
     timerRef.current = setTimeout(() => {
-      const match = isMatch(stepIndex);
+      const match = stepIndex >= n && sequence[stepIndex] === sequence[stepIndex - n];
 
-      if (match && userClicked) {
+      if (match && clickedAtStart) {
         setFeedbackType('correct');
-        setRoundHits((h) => h + 1);
-        setRoundOpportunities((o) => o + 1);
-      } else if (match && !userClicked) {
+        hitsRef.current.roundHits++;
+        hitsRef.current.roundOpps++;
+      } else if (match && !clickedAtStart) {
         setFeedbackType('missed');
-        setRoundOpportunities((o) => o + 1);
-      } else if (!match && userClicked) {
+        hitsRef.current.roundOpps++;
+      } else if (!match && clickedAtStart) {
         setFeedbackType('wrong');
       } else {
         setStepIndex((s) => s + 1);
@@ -104,11 +105,10 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
       }
 
       setPhase('feedback');
-    }, 2000);
+    }, STEP_MS);
 
     return () => clearTimer();
-  }, [phase, stepIndex, sequence, isMatch, userClicked, roundIdx, roundsData.length,
-      worksheetMode, totalHits, totalOpportunities, roundHits, roundOpportunities, clearTimer]);
+  }, [phase, stepIndex, roundIdx, sequence, n, userClicked, roundsData.length, clearTimer]);
 
   useEffect(() => {
     if (phase !== 'feedback') return;
@@ -117,7 +117,7 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
       setUserClicked(false);
       setStepIndex((s) => s + 1);
       setPhase('running');
-    }, 800);
+    }, FEEDBACK_MS);
     return () => clearTimer();
   }, [phase, clearTimer]);
 
@@ -126,37 +126,38 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
     setUserClicked(true);
   };
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     const rs = Array.from({ length: totalRounds }, () => generateNBackSequence(p.seqLength, p.nBack));
     setRoundsData(rs);
     setRoundIdx(0);
     setStepIndex(0);
-    setRoundHits(0);
-    setRoundOpportunities(0);
-    setTotalHits(0);
-    setTotalOpportunities(0);
+    hitsRef.current = { totalHits: 0, totalOpps: 0, roundHits: 0, roundOpps: 0 };
     setUserClicked(false);
     setFeedbackType(null);
     setPhase('running');
   };
 
   if (phase === 'results') {
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary">N-Back Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6 border border-gray-700/50">
-          <div className="text-4xl font-bold mb-2 text-primary">{totalHits}/{totalOpportunities}</div>
-          <p className="text-gray-400 text-sm">Correct matches</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          {!worksheetMode && (
-            <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const h = hitsRef.current;
+    const totalOpp = Math.max(1, h.totalOpps);
+    const reportData: ReportData = {
+      title: 'N-Back Numbers',
+      subtitle: `${effectiveDiff} · N=${n} · ${roundsData.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'N-Back Numbers', icon: '🔢',
+        score: h.totalHits, total: totalOpp,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * roundsData.length,
+        details: [],
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={isWorksheet.current ? undefined : () => setPhase('config')} gameId="n-back-numbers" />;
   }
 
   if ((phase === 'running' || phase === 'feedback') && sequence.length > 0 && stepIndex < sequence.length) {
@@ -192,6 +193,14 @@ export default function NBackNumbers({ worksheetMode, onComplete }: {
           {userClicked ? '✓ Matched' : 'Match!'}
         </button>
         <p className="text-gray-500 text-xs mt-4">Each number shows for 2 seconds</p>
+      </div>
+    );
+  }
+
+  if (phase === 'running' && stepIndex >= sequence.length) {
+    return (
+      <div className="text-center text-gray-400 py-12">
+        <p>Advancing to next round...</p>
       </div>
     );
   }

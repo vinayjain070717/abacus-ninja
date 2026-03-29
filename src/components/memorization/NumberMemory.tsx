@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateMemorySequence } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 
 type Phase = 'config' | 'showing' | 'input' | 'results';
@@ -38,7 +41,10 @@ export default function NumberMemory({
     setDisplayTime(p.displayTime);
   }, [difficulty, worksheetMode]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     const c = p.count;
     const dt = p.displayTime;
@@ -86,30 +92,26 @@ export default function NumberMemory({
   };
 
   if (phase === 'results') {
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{sequence.length}</div>
-          <div className="flex justify-center gap-2 mb-4 flex-wrap">
-            {sequence.map((n, i) => {
-              const userDigits = userInput.split('').map(Number);
-              const match = userDigits[i] === n;
-              return (
-                <div key={i} className={`w-10 h-10 flex items-center justify-center rounded-lg text-lg font-bold ${match ? 'bg-green-700' : 'bg-red-700'}`}>
-                  {n}
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-gray-400 text-sm">Your input: {userInput || '—'}</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const userDigits = userInput.split('').map(Number).filter((n) => !isNaN(n));
+    const reportData: ReportData = {
+      title: 'Number Memory',
+      subtitle: `${effectiveDiff} · ${sequence.length} digits`,
+      totalTimeSec,
+      sections: [{
+        label: 'Number Memory', icon: '🧠',
+        score, total: sequence.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * Math.max(1, Math.ceil(sequence.length / 4)),
+        details: sequence.map((n, i) => ({
+          display: `Position ${i + 1}`,
+          correct: userDigits[i] === n,
+          correctAnswer: String(n),
+          userAnswer: userDigits[i] != null ? String(userDigits[i]) : '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={() => setPhase('config')} />;
   }
 
   if (phase === 'showing') {

@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateMentalMathChain, type MentalMathStep } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -28,7 +31,7 @@ export default function MentalMathChain({ worksheetMode, onComplete }: {
   const [correctAnswer, setCorrectAnswer] = useState(0);
   const [currentStep, setCurrentStep] = useState(-1);
   const [userAnswer, setUserAnswer] = useState('');
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [_isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [lastFeedback, setLastFeedback] = useState<{
     start: number;
     steps: MentalMathStep[];
@@ -61,7 +64,10 @@ export default function MentalMathChain({ worksheetMode, onComplete }: {
     }
   }, [worksheetMode, phase, steps.length, effectiveDiff]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setChainLength(p.chainLength);
     setMaxDigits(p.maxDigits);
@@ -158,26 +164,25 @@ export default function MentalMathChain({ worksheetMode, onComplete }: {
   }
 
   if (phase === 'results') {
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Result</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className={`text-4xl font-bold mb-4 ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-            {isCorrect ? 'Correct!' : 'Wrong!'}
-          </div>
-          <div className="text-left bg-surface-light rounded-lg p-4 font-mono text-sm space-y-1">
-            <div>Start: {start}</div>
-            {steps.map((s, i) => (<div key={i}>{s.operation} {s.value}</div>))}
-            <div className="border-t border-gray-600 pt-1 font-bold">= {correctAnswer}</div>
-            {!isCorrect && <div className="text-red-400">Your answer: {userAnswer}</div>}
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Mental Math Chain',
+      subtitle: `${effectiveDiff} · ${chainLength} steps`,
+      totalTimeSec,
+      sections: [{
+        label: 'Mental Math Chain', icon: '🔗',
+        score: wsScore.current, total: 1,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound,
+        details: lastFeedback ? [{
+          display: `${lastFeedback.start} → ${lastFeedback.steps.map(s => `${s.operation}${s.value}`).join(' ')}`,
+          correct: lastFeedback.correct,
+          correctAnswer: String(lastFeedback.correctAnswer),
+          userAnswer: lastFeedback.userAnswer || '—',
+        }] : [],
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && steps.length > 0) {

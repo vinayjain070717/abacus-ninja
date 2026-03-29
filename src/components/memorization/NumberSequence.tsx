@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import { generateNumberSequence, type SequenceProblem } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 type Phase = 'config' | 'playing' | 'feedback' | 'results';
 
@@ -37,10 +40,12 @@ export default function NumberSequence({ worksheetMode, onComplete }: {
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
   const resultsRef = useRef<RoundResult[]>([]);
   resultsRef.current = results;
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const level = SEQ_LEVEL[effectiveDiff];
     const ps = Array.from({ length: totalRounds }, () => generateNumberSequence(level));
     setAllProblems(ps);
@@ -110,27 +115,25 @@ export default function NumberSequence({ worksheetMode, onComplete }: {
   }
 
   if (phase === 'results') {
-    const score = results.filter(r => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Sequence Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{results.length}</div>
-        </div>
-        <div className="space-y-2 mb-6">
-          {results.map((r, i) => (
-            <div key={i} className={`p-3 rounded-lg text-sm font-mono flex justify-between ${r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'}`}>
-              <span>{r.problem.sequence.join(', ')}, <span className="text-accent font-bold">{r.problem.answer}</span></span>
-              {!r.correct && <span className="text-red-400">You: {r.userAnswer ?? '—'}</span>}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          {!worksheetMode && <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Number Sequence',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Number Sequence', icon: '🔢',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: `${r.problem.sequence.join(', ')}, ?`,
+          correct: r.correct,
+          correctAnswer: String(r.problem.answer),
+          userAnswer: r.userAnswer != null ? String(r.userAnswer) : '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && allProblems.length > 0) {

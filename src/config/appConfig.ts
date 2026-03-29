@@ -164,6 +164,16 @@ export const APP_CONFIG = {
     ],
   },
 
+  // ── IDEAL TIMES (seconds) ──────────────────────────────
+  // Per-problem ideal times used in the detailed report.
+  // Multiply by problem count to get ideal section time.
+  idealTimes: {
+    addSubPerProblem:  [8, 7, 6, 5, 5, 4, 4, 3, 3, 2] as readonly number[], // indexed by level-1
+    multiplyPerProblem:[10, 9, 8, 7, 6, 6, 5, 5, 4, 4] as readonly number[],
+    divisionPerProblem:[10, 9, 8, 7, 7, 6, 6, 5, 5, 4] as readonly number[],
+    brainGamePerRound: { easy: 15, medium: 12, hard: 10 } as Record<string, number>,
+  },
+
   // ── UI ───────────────────────────────────────────────────
   ui: {
     gameGridColumns: 3,
@@ -185,7 +195,7 @@ export const APP_CONFIG = {
 
   // ── SOUNDS ───────────────────────────────────────────────
   sounds: {
-    enabled: false,
+    enabled: true,
     volume: 0.5,
     tones: {
       correct:  { frequency: 880, duration: 150, type: 'sine' as const },
@@ -211,6 +221,13 @@ export const APP_CONFIG = {
   theme: {
     default: 'dark' as 'dark' | 'light' | 'system',
   },
+
+  // ── GAME MODES ─────────────────────────────────────────
+  gameModes: {
+    normal: { feedbackMultiplier: 1, timerMultiplier: 1, label: 'Normal' },
+    speed:  { feedbackMultiplier: 0.5, timerMultiplier: 0.6, label: 'Speed' },
+    zen:    { feedbackMultiplier: 0, timerMultiplier: 0, label: 'Zen' },
+  } as Record<string, { feedbackMultiplier: number; timerMultiplier: number; label: string }>,
 
   // ── FOCUS TIMER ──────────────────────────────────────────
   focusTimer: {

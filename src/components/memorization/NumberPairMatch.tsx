@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { generatePairMatchBoard, type PairMatchCard } from '../../utils/problemGenerator';
 import { formatTime } from '../../utils/scoring';
 import type { Difficulty } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 
 type Phase = 'config' | 'playing' | 'results';
@@ -55,7 +57,10 @@ export default function NumberPairMatch({ worksheetMode, onComplete }: {
     }
   }, [matched, cards.length, worksheetMode, onComplete, attempts]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setPairCount(p.pairCount);
     setTargetSum(p.targetSum);
@@ -102,20 +107,21 @@ export default function NumberPairMatch({ worksheetMode, onComplete }: {
   };
 
   if (phase === 'results') {
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const totalPairs = cards.length / 2;
     const pairsFound = matched.size / 2;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Pair Match Complete!</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{pairsFound} pairs</div>
-          <div className="text-gray-400">Time: {formatTime(seconds)} | Attempts: {attempts}</div>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          {!worksheetMode && <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>}
-        </div>
-      </div>
-    );
+    const reportData: ReportData = {
+      title: 'Number Pair Match',
+      subtitle: `${effectiveDiff} · Target sum ${targetSum}`,
+      totalTimeSec,
+      sections: [{
+        label: 'Number Pair Match', icon: '🎴',
+        score: pairsFound, total: totalPairs,
+        timeSpentSec: totalTimeSec, idealTimeSec: totalPairs * 8,
+        details: [],
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing') {

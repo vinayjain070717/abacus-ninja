@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -85,7 +88,10 @@ export default function DigitReactionTime({
     return () => clearRoundTimer();
   }, [phase, roundIndex, startRound]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setDisplayMs(p.displayMs);
     setRoundIndex(0);
@@ -175,38 +181,25 @@ export default function DigitReactionTime({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    const times = results.filter((r) => r.correct && r.reactionMs !== null).map((r) => r.reactionMs!);
-    const avg =
-      times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null;
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2 text-accent">{score}/{results.length}</div>
-          {avg !== null && <div className="text-gray-400 text-sm">Avg reaction (correct): {avg}ms</div>}
-          {avg === null && <div className="text-gray-400 text-sm">No correct reactions to average.</div>}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Digit Reaction Time',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Digit Reaction Time', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing') {

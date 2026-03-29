@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import { generateFractionProblem, type FractionProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 const DIFF_PARAMS = {
   easy: { maxDenom: 5 },
@@ -52,10 +55,12 @@ export default function FractionToDecimal({
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
 
   const problem = allProblems[currentIdx];
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const md = DIFF_PARAMS[effectiveDiff].maxDenom;
     const ps = Array.from({ length: totalRounds }, () => generateFractionProblem(md));
     setAllProblems(ps);
@@ -162,50 +167,25 @@ export default function FractionToDecimal({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Fraction → decimal</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{results.length}</div>
-          <p className="text-gray-400 text-sm">Within ±{TOLERANCE} of the rounded value counts as correct.</p>
-        </div>
-        <div className="space-y-2 mb-6 max-h-64 overflow-y-auto text-left">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm font-mono ${
-                r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'
-              }`}
-            >
-              <div className="text-gray-200">{r.problem.display}</div>
-              <div className="text-gray-400 mt-1">= {r.problem.answer}</div>
-              {!r.correct && (
-                <div className="text-red-400 mt-1">You: {r.userAnswer ?? '—'}</div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold text-white hover:bg-primary-dark"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Fraction → Decimal',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Fraction → Decimal', icon: '🔢',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: r.problem.display,
+          correct: r.correct,
+          correctAnswer: String(r.problem.answer),
+          userAnswer: r.userAnswer != null ? String(r.userAnswer) : '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   return (

@@ -1,7 +1,9 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { APP_CONFIG, BRAIN_GAME_IDS, getBrainGameLabel } from '../config/appConfig';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { APP_CONFIG, BRAIN_GAME_IDS, getBrainGameLabel, type BrainGameConfig, type GameCategory } from '../config/appConfig';
 import { generateAddSubMixed, generateMultiplication, generateDivision, generateMemorySequence } from '../utils/problemGenerator';
 import type { AddSubProblem, MultiplyProblem, DivisionProblem } from '../utils/problemGenerator';
+import DetailedReport from '../components/shared/DetailedReport';
+import type { ReportData } from '../types/report';
 
 import SpeedGrid from '../components/memorization/SpeedGrid';
 import MentalMathChain from '../components/memorization/MentalMathChain';
@@ -74,27 +76,66 @@ type Section =
   | { kind: 'game'; title: string; gameId: string; rounds: number };
 
 const defaultCount = () => APP_CONFIG.customWorksheet.defaultProblemsPerType;
+const LS_KEY = 'abacus_custom_config';
+
+interface SavedConfig {
+  level: number;
+  useAdd: boolean; useMul: boolean; useDiv: boolean;
+  addCount: number; mulCount: number; divCount: number;
+  gamePick: Record<string, boolean>;
+  gameCounts: Record<string, number>;
+}
+
+function loadSavedConfig(): SavedConfig | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw) as SavedConfig;
+  } catch { /* corrupted */ }
+  return null;
+}
+
+const PRESETS = {
+  quick: { label: 'Quick (5 min)', addCount: 5, mulCount: 0, divCount: 0, useAdd: true, useMul: false, useDiv: false, gameCount: 2 },
+  standard: { label: 'Standard (15 min)', addCount: 10, mulCount: 5, divCount: 5, useAdd: true, useMul: true, useDiv: true, gameCount: 4 },
+  full: { label: 'Full (30 min)', addCount: 15, mulCount: 10, divCount: 10, useAdd: true, useMul: true, useDiv: true, gameCount: 8 },
+} as const;
+
+const GAME_CATEGORIES: GameCategory[] = ['memory', 'mental-arithmetic', 'logic', 'speed'];
+
+function getGamesByCategory(): Record<GameCategory, string[]> {
+  const result = { memory: [] as string[], 'mental-arithmetic': [] as string[], logic: [] as string[], speed: [] as string[] };
+  for (const id of BRAIN_GAME_IDS) {
+    const cfg = (APP_CONFIG.brainGames as Record<string, BrainGameConfig>)[id];
+    if (cfg) result[cfg.category].push(id);
+  }
+  return result;
+}
 
 export default function CustomWorksheet() {
+  const saved = useRef(loadSavedConfig());
   const [phase, setPhase] = useState<'setup' | 'run' | 'results'>('setup');
-  const [level, setLevel] = useState(5);
-  const [useAdd, setUseAdd] = useState(false);
-  const [useMul, setUseMul] = useState(false);
-  const [useDiv, setUseDiv] = useState(false);
-  const [addCount, setAddCount] = useState<number>(() => defaultCount());
-  const [mulCount, setMulCount] = useState<number>(() => defaultCount());
-  const [divCount, setDivCount] = useState<number>(() => defaultCount());
+  const [level, setLevel] = useState(saved.current?.level ?? 5);
+  const [useAdd, setUseAdd] = useState(saved.current?.useAdd ?? false);
+  const [useMul, setUseMul] = useState(saved.current?.useMul ?? false);
+  const [useDiv, setUseDiv] = useState(saved.current?.useDiv ?? false);
+  const [addCount, setAddCount] = useState<number>(saved.current?.addCount ?? defaultCount());
+  const [mulCount, setMulCount] = useState<number>(saved.current?.mulCount ?? defaultCount());
+  const [divCount, setDivCount] = useState<number>(saved.current?.divCount ?? defaultCount());
   const [gamePick, setGamePick] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(BRAIN_GAME_IDS.map((id) => [id, false]))
+    saved.current?.gamePick ?? Object.fromEntries(BRAIN_GAME_IDS.map((id) => [id, false]))
   );
   const [gameCounts, setGameCounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(BRAIN_GAME_IDS.map((id) => [id, defaultCount()]))
+    saved.current?.gameCounts ?? Object.fromEntries(BRAIN_GAME_IDS.map((id) => [id, defaultCount()]))
   );
+  const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
 
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionIdx, setSectionIdx] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
-  const [sectionResults, setSectionResults] = useState<{ title: string; score: number; total: number }[]>([]);
+  const [sectionResults, setSectionResults] = useState<{ title: string; score: number; total: number; timeSec: number }[]>([]);
+  const startTimeRef = useRef(Date.now());
+  const sectionStartRef = useRef(Date.now());
+  const gamesByCategory = useRef(getGamesByCategory());
 
   const totalSelected = (): number => {
     let t = 0;
@@ -107,6 +148,38 @@ export default function CustomWorksheet() {
     return t;
   };
 
+  const applyPreset = (preset: keyof typeof PRESETS) => {
+    const p = PRESETS[preset];
+    setUseAdd(p.useAdd); setUseMul(p.useMul); setUseDiv(p.useDiv);
+    setAddCount(p.addCount); setMulCount(p.mulCount); setDivCount(p.divCount);
+    const newPick: Record<string, boolean> = {};
+    const newCounts: Record<string, number> = {};
+    const shuffled = [...BRAIN_GAME_IDS].sort(() => Math.random() - 0.5);
+    for (const id of BRAIN_GAME_IDS) {
+      newPick[id] = shuffled.indexOf(id) < p.gameCount;
+      newCounts[id] = defaultCount();
+    }
+    setGamePick(newPick);
+    setGameCounts(newCounts);
+  };
+
+  const resetConfig = () => {
+    setLevel(5); setUseAdd(false); setUseMul(false); setUseDiv(false);
+    setAddCount(defaultCount()); setMulCount(defaultCount()); setDivCount(defaultCount());
+    setGamePick(Object.fromEntries(BRAIN_GAME_IDS.map((id) => [id, false])));
+    setGameCounts(Object.fromEntries(BRAIN_GAME_IDS.map((id) => [id, defaultCount()])));
+    localStorage.removeItem(LS_KEY);
+  };
+
+  const toggleCategory = (cat: GameCategory, on: boolean) => {
+    const ids = gamesByCategory.current[cat];
+    setGamePick((prev) => {
+      const next = { ...prev };
+      for (const id of ids) next[id] = on;
+      return next;
+    });
+  };
+
   const generate = () => {
     const max = APP_CONFIG.customWorksheet.maxTotalProblems;
     const t = totalSelected();
@@ -115,6 +188,10 @@ export default function CustomWorksheet() {
       alert(`Total problems (${t}) exceeds limit (${max}).`);
       return;
     }
+
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      level, useAdd, useMul, useDiv, addCount, mulCount, divCount, gamePick, gameCounts,
+    } as SavedConfig));
 
     const cfg = APP_CONFIG.levels[Math.min(level, APP_CONFIG.worksheet.maxLevel) - 1];
     const next: Section[] = [];
@@ -176,6 +253,8 @@ export default function CustomWorksheet() {
     setSections(next);
     setSectionIdx(0);
     setSectionResults([]);
+    startTimeRef.current = Date.now();
+    sectionStartRef.current = Date.now();
     setPhase('run');
     const first = next[0];
     if (first && (first.kind === 'add' || first.kind === 'multiply' || first.kind === 'divide')) {
@@ -187,49 +266,66 @@ export default function CustomWorksheet() {
 
   const current = sections[sectionIdx];
 
+  const advanceSection = () => {
+    const nextIdx = sectionIdx + 1;
+    sectionStartRef.current = Date.now();
+    if (nextIdx >= sections.length) {
+      setPhase('results');
+    } else {
+      setSectionIdx(nextIdx);
+      const n = sections[nextIdx];
+      if (n && (n.kind === 'add' || n.kind === 'multiply' || n.kind === 'divide')) {
+        setAnswers(Array(n.problems.length).fill(''));
+      } else {
+        setAnswers([]);
+      }
+    }
+  };
+
   const finishArithmetic = (title: string, problems: { display: string; correctAnswer: number }[], ans: string[]) => {
     let score = 0;
     problems.forEach((p, i) => {
       if (parseInt(ans[i], 10) === p.correctAnswer) score++;
     });
-    setSectionResults((r) => [...r, { title, score, total: problems.length }]);
-    const nextIdx = sectionIdx + 1;
-    if (nextIdx >= sections.length) {
-      setPhase('results');
-    } else {
-      setSectionIdx(nextIdx);
-      const n = sections[nextIdx];
-      if (n && (n.kind === 'add' || n.kind === 'multiply' || n.kind === 'divide')) {
-        setAnswers(Array(n.problems.length).fill(''));
-      } else {
-        setAnswers([]);
-      }
-    }
+    const timeSec = Math.round((Date.now() - sectionStartRef.current) / 1000);
+    setSectionResults((r) => [...r, { title, score, total: problems.length, timeSec }]);
+    advanceSection();
   };
 
   const finishGame = (title: string, score: number, total: number) => {
-    setSectionResults((r) => [...r, { title, score, total }]);
-    const nextIdx = sectionIdx + 1;
-    if (nextIdx >= sections.length) {
-      setPhase('results');
-    } else {
-      setSectionIdx(nextIdx);
-      const n = sections[nextIdx];
-      if (n && (n.kind === 'add' || n.kind === 'multiply' || n.kind === 'divide')) {
-        setAnswers(Array(n.problems.length).fill(''));
-      } else {
-        setAnswers([]);
-      }
-    }
+    const timeSec = Math.round((Date.now() - sectionStartRef.current) / 1000);
+    setSectionResults((r) => [...r, { title, score, total, timeSec }]);
+    advanceSection();
   };
 
   if (phase === 'setup') {
     return (
       <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2 text-center">Custom worksheet</h1>
-        <p className="text-gray-400 text-sm text-center mb-6">
+        <h1 className="text-2xl font-bold mb-2 text-center">Custom Worksheet</h1>
+        <p className="text-gray-400 text-sm text-center mb-4">
           Choose sections and counts (max {APP_CONFIG.customWorksheet.maxTotalProblems} total).
         </p>
+
+        {/* Preset buttons */}
+        <div className="flex gap-2 justify-center mb-6">
+          {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => applyPreset(key)}
+              className="px-4 py-2 bg-surface-light rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-600 hover:text-white transition-colors border border-gray-700"
+            >
+              {PRESETS[key].label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={resetConfig}
+            className="px-4 py-2 bg-red-900/30 rounded-lg text-sm font-medium text-red-400 hover:bg-red-900/50 transition-colors border border-red-700/30"
+          >
+            Reset
+          </button>
+        </div>
 
         <div className="mb-4">
           <label className="block text-sm text-gray-400 mb-2">Level (difficulty)</label>
@@ -278,31 +374,65 @@ export default function CustomWorksheet() {
           ))}
         </div>
 
-        <h2 className="text-lg font-bold mt-6 mb-2">Brain games</h2>
-        <div className="max-h-64 overflow-y-auto space-y-2 bg-surface rounded-xl border border-gray-700 p-3">
-          {BRAIN_GAME_IDS.map((id) => (
-            <div key={id} className="flex flex-wrap items-center gap-2 text-sm">
-              <label className="flex items-center gap-2 flex-1 min-w-[180px]">
-                <input
-                  type="checkbox"
-                  checked={gamePick[id]}
-                  onChange={(e) => setGamePick((p) => ({ ...p, [id]: e.target.checked }))}
-                />
-                <span>{getBrainGameLabel(id)}</span>
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                disabled={!gamePick[id]}
-                value={gameCounts[id]}
-                onChange={(e) =>
-                  setGameCounts((c) => ({ ...c, [id]: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-                }
-                className="w-16 px-2 py-1 rounded bg-surface-light border border-gray-600 disabled:opacity-40"
-              />
-            </div>
-          ))}
+        <h2 className="text-lg font-bold mt-6 mb-2">Brain Games</h2>
+        <div className="space-y-2">
+          {GAME_CATEGORIES.map((cat) => {
+            const ids = gamesByCategory.current[cat];
+            const catLabel = APP_CONFIG.gameCategories[cat].label;
+            const isCollapsed = collapsedCats[cat] ?? false;
+            const selectedCount = ids.filter((id) => gamePick[id]).length;
+            const allSelected = ids.every((id) => gamePick[id]);
+            return (
+              <div key={cat} className="bg-surface rounded-xl border border-gray-700 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setCollapsedCats((c) => ({ ...c, [cat]: !isCollapsed }))}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-light/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`text-gray-500 transition-transform duration-200 text-xs ${isCollapsed ? '' : 'rotate-90'}`}>&#9654;</span>
+                    <span className="font-semibold text-sm">{catLabel}</span>
+                    <span className="text-xs text-gray-500">({selectedCount}/{ids.length})</span>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-gray-400" onClick={(e) => e.stopPropagation()}>
+                    All
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={(e) => toggleCategory(cat, e.target.checked)}
+                    />
+                  </label>
+                </button>
+                {!isCollapsed && (
+                  <div className="border-t border-gray-700 px-3 py-2 space-y-1 max-h-40 overflow-y-auto">
+                    {ids.map((id) => (
+                      <div key={id} className="flex flex-wrap items-center gap-2 text-sm">
+                        <label className="flex items-center gap-2 flex-1 min-w-[180px]">
+                          <input
+                            type="checkbox"
+                            checked={gamePick[id]}
+                            onChange={(e) => setGamePick((p) => ({ ...p, [id]: e.target.checked }))}
+                          />
+                          <span className="text-gray-300">{getBrainGameLabel(id)}</span>
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={50}
+                          disabled={!gamePick[id]}
+                          value={gameCounts[id]}
+                          onChange={(e) =>
+                            setGameCounts((c) => ({ ...c, [id]: Math.max(1, parseInt(e.target.value, 10) || 1) }))
+                          }
+                          className="w-16 px-2 py-1 rounded bg-surface-light border border-gray-600 disabled:opacity-40 text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-4 text-center text-sm text-gray-400">Selected total: {totalSelected()}</div>
@@ -318,32 +448,36 @@ export default function CustomWorksheet() {
   }
 
   if (phase === 'results') {
-    const grandScore = sectionResults.reduce((a, s) => a + s.score, 0);
-    const grandTotal = sectionResults.reduce((a, s) => a + s.total, 0);
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const iconMap: Record<string, string> = { 'Addition / Subtraction': '±', Multiplication: '×', Division: '÷' };
+    const reportData: ReportData = {
+      title: 'Custom Worksheet',
+      subtitle: `Level ${level}`,
+      totalTimeSec,
+      sections: sectionResults.map((s) => {
+        const idealPerProblem = s.title.includes('Addition') ? (APP_CONFIG.idealTimes.addSubPerProblem[Math.min(level, 10) - 1] ?? 5)
+          : s.title.includes('Multiplication') ? (APP_CONFIG.idealTimes.multiplyPerProblem[Math.min(level, 10) - 1] ?? 7)
+          : s.title.includes('Division') ? (APP_CONFIG.idealTimes.divisionPerProblem[Math.min(level, 10) - 1] ?? 7)
+          : (APP_CONFIG.idealTimes.brainGamePerRound['medium'] ?? 12);
+        return {
+          label: s.title,
+          icon: iconMap[s.title] ?? '🧠',
+          score: s.score,
+          total: s.total,
+          timeSpentSec: s.timeSec,
+          idealTimeSec: s.total * idealPerProblem,
+          details: [],
+        };
+      }),
+    };
+
     return (
-      <div className="max-w-lg mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="text-3xl font-bold text-primary mb-6">
-          {grandScore}/{grandTotal}
-        </div>
-        <ul className="text-left space-y-2 mb-6">
-          {sectionResults.map((s, i) => (
-            <li key={i} className="flex justify-between bg-surface rounded-lg px-4 py-2 border border-gray-700">
-              <span>{s.title}</span>
-              <span className="font-mono">
-                {s.score}/{s.total}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <button
-          type="button"
-          onClick={() => setPhase('setup')}
-          className="px-6 py-2 bg-accent rounded-lg font-semibold hover:bg-accent-dark"
-        >
-          New worksheet
-        </button>
-      </div>
+      <DetailedReport
+        data={reportData}
+        onPlayAgain={() => { setPhase('setup'); setSectionResults([]); }}
+        onPrint={() => window.print()}
+        gameId="custom-worksheet"
+      />
     );
   }
 

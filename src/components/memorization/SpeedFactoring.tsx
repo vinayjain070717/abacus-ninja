@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import { generateFactoringProblem, type FactoringProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
@@ -60,7 +63,10 @@ export default function SpeedFactoring({
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const ps = Array.from({ length: totalRounds }, () =>
       generateFactoringProblem(DIFF_PARAMS[effectiveDiff].maxN)
     );
@@ -130,54 +136,25 @@ export default function SpeedFactoring({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary">Speed Factoring</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2 text-primary">
-            {score}/{results.length}
-          </div>
-        </div>
-        <div className="space-y-2 mb-6 max-h-64 overflow-y-auto text-left">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm font-mono ${
-                r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'
-              }`}
-            >
-              <span>
-                {r.problem.number} = {formatFactors(r.problem.factors)}
-              </span>
-              {!r.correct && (
-                <span className="text-red-400 ml-2">
-                  You: {r.userFactors ? formatFactors(r.userFactors) : '—'}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark"
-          >
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Speed Factoring',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Speed Factoring', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && allProblems.length > 0) {

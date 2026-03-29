@@ -7,43 +7,49 @@ const cards = [
     to: '/addition',
     title: 'Addition & Subtraction',
     desc: 'Flash Anzan & Static modes',
-    color: 'from-blue-600 to-blue-800',
+    color: 'from-blue-900/80 to-blue-950/90',
     icon: '±',
+    image: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?w=600&q=75&auto=format',
   },
   {
     to: '/multiplication',
     title: 'Multiplication',
     desc: 'All digit combinations',
-    color: 'from-green-600 to-green-800',
+    color: 'from-green-900/80 to-green-950/90',
     icon: '×',
+    image: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&q=75&auto=format',
   },
   {
     to: '/division',
     title: 'Division',
     desc: 'With & without remainder',
-    color: 'from-purple-600 to-purple-800',
+    color: 'from-purple-900/80 to-purple-950/90',
     icon: '÷',
+    image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=600&q=75&auto=format',
   },
   {
     to: '/worksheet',
     title: 'Daily Worksheet',
     desc: 'Auto-generated & timed',
-    color: 'from-orange-600 to-orange-800',
+    color: 'from-orange-900/80 to-orange-950/90',
     icon: '📋',
+    image: 'https://images.unsplash.com/photo-1456735190827-d1262f71b8a3?w=600&q=75&auto=format',
   },
   {
     to: '/memory',
     title: 'Brain Games',
     desc: `${Object.keys(APP_CONFIG.brainGames).length} brain training games`,
-    color: 'from-pink-600 to-pink-800',
+    color: 'from-pink-900/80 to-pink-950/90',
     icon: '🧠',
+    image: 'https://images.unsplash.com/photo-1559757175-5700dde675bc?w=600&q=75&auto=format',
   },
   {
     to: '/tutorials',
     title: 'Vedic Math & Tutorials',
     desc: 'Ancient tricks for lightning math',
-    color: 'from-cyan-600 to-cyan-800',
+    color: 'from-cyan-900/80 to-cyan-950/90',
     icon: '📖',
+    image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&q=75&auto=format',
   },
 ];
 
@@ -109,11 +115,20 @@ export default function Home() {
             <Link
               key={card.to}
               to={card.to}
-              className={`block bg-gradient-to-br ${card.color} rounded-xl p-6 hover:scale-[1.02] transition-transform`}
+              className="block rounded-xl overflow-hidden hover:scale-[1.02] transition-transform relative group h-44"
             >
-              <div className="text-3xl mb-3">{card.icon}</div>
-              <h3 className="text-lg font-bold mb-1">{card.title}</h3>
-              <p className="text-sm text-white/70">{card.desc}</p>
+              <img
+                src={card.image}
+                alt={card.title}
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              />
+              <div className={`absolute inset-0 bg-gradient-to-br ${card.color}`} />
+              <div className="relative z-10 p-6 h-full flex flex-col justify-end">
+                <div className="text-3xl mb-2">{card.icon}</div>
+                <h3 className="text-lg font-bold mb-1 text-white">{card.title}</h3>
+                <p className="text-sm text-white/80">{card.desc}</p>
+              </div>
             </Link>
           ))}
         </div>
@@ -135,8 +150,35 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SEO text block -- hidden for visual users but visible to crawlers via sr-only would hide it;
-          instead we make it subtle but real content users might read */}
+      {/* Benefits CTA */}
+      <section className="relative rounded-2xl overflow-hidden">
+        <img
+          src="https://images.unsplash.com/photo-1596495578065-6e0763fa1178?w=1000&q=70&auto=format"
+          alt="Benefits of mental math and abacus training"
+          loading="lazy"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/50" />
+        <div className="relative z-10 py-10 px-6 md:px-10 flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-1 text-center md:text-left">
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-2">
+              How Does Mental Math Training Benefit You?
+            </h2>
+            <p className="text-gray-300 text-sm max-w-lg">
+              Discover how daily practice helps software developers debug faster, students ace exams,
+              finance professionals calculate instantly, and seniors maintain brain health.
+            </p>
+          </div>
+          <Link
+            to="/benefits"
+            className="shrink-0 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors"
+          >
+            Read the Full Guide
+          </Link>
+        </div>
+      </section>
+
+      {/* SEO text block */}
       <section className="text-center text-gray-500 text-xs space-y-2 pb-4">
         <p>
           {APP_CONFIG.app.name} is a free online mental math and brain training platform. Practice addition,

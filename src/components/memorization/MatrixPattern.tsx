@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import { generateMatrixPattern, type MatrixPatternProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 type Phase = 'config' | 'playing' | 'feedback' | 'results';
 
@@ -40,10 +43,12 @@ export default function MatrixPattern({ worksheetMode, onComplete }: {
   const resultsRef = useRef<RoundResult[]>([]);
   resultsRef.current = results;
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
 
   const problem = allProblems[currentIdx];
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const ps = Array.from({ length: totalRounds }, () =>
       generateMatrixPattern(DIFF_PARAMS[effectiveDiff].gridSize)
     );
@@ -88,41 +93,25 @@ export default function MatrixPattern({ worksheetMode, onComplete }: {
   };
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary">Matrix Pattern</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6 border border-gray-700/50">
-          <div className="text-4xl font-bold mb-2 text-primary tabular-nums">
-            {score}/{results.length}
-          </div>
-          <p className="text-gray-400 text-sm">Correct</p>
-        </div>
-        <div className="space-y-3 mb-6 text-left text-sm">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg border ${
-                r.correct ? 'bg-green-900/30 border-green-800' : 'bg-red-900/30 border-red-800'
-              }`}
-            >
-              <div className="text-gray-400 mb-1">Missing: {r.problem.answer}</div>
-              {!r.correct && <div className="text-red-400 font-mono">You: {r.userAnswer || '—'}</div>}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button type="button" onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button type="button" onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Matrix Pattern',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Matrix Pattern', icon: '🔢',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: `Missing value = ?`,
+          correct: r.correct,
+          correctAnswer: String(r.problem.answer),
+          userAnswer: r.userAnswer || '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'feedback' && lastResult) {

@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateMemorySequence } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 
 type Phase = 'config' | 'showing' | 'input' | 'results';
@@ -26,7 +29,7 @@ export default function ReverseMemory({
 
   const [sequence, setSequence] = useState<number[]>([]);
   const [userInput, setUserInput] = useState('');
-  const [score, setScore] = useState(0);
+  const [_score, setScore] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -36,7 +39,10 @@ export default function ReverseMemory({
     setDisplayTime(p.displayTime);
   }, [difficulty, worksheetMode]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     const c = p.count;
     const dt = p.displayTime;
@@ -71,27 +77,28 @@ export default function ReverseMemory({
   };
 
   if (phase === 'results') {
-    const userDigits = userInput.split('').map(Number);
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{sequence.length}</div>
-          <p className="text-gray-400 text-sm mb-3">Original: {sequence.join(' ')}</p>
-          <p className="text-gray-400 text-sm mb-3">Reversed: {reversed.join(' ')}</p>
-          <div className="flex justify-center gap-2 flex-wrap">
-            {reversed.map((n, i) => (
-              <div key={i} className={`w-10 h-10 flex items-center justify-center rounded-lg text-lg font-bold ${userDigits[i] === n ? 'bg-green-700' : 'bg-red-700'}`}>{n}</div>
-            ))}
-          </div>
-          <p className="text-gray-400 text-sm mt-3">Your input: {userInput || '—'}</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const userDigits = userInput.split('').map(Number).filter((n) => !isNaN(n));
+    const reportData: ReportData = {
+      title: 'Reverse Memory',
+      subtitle: `${effectiveDiff} · ${sequence.length} digits`,
+      totalTimeSec,
+      sections: [{
+        label: 'Reverse Memory', icon: '🔄',
+        score: reversed.reduce((acc, n, i) => acc + (userDigits[i] === n ? 1 : 0), 0),
+        total: reversed.length,
+        timeSpentSec: totalTimeSec,
+        idealTimeSec: idealPerRound * Math.max(1, Math.ceil(sequence.length / 4)),
+        details: reversed.map((n, i) => ({
+          display: `Position ${i + 1}`,
+          correct: userDigits[i] === n,
+          correctAnswer: String(n),
+          userAnswer: userDigits[i] != null ? String(userDigits[i]) : '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={() => setPhase('config')} />;
   }
 
   if (phase === 'showing') {

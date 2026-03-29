@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
 const DIFF_PARAMS = {
-  easy: { positions: 4 },
-  medium: { positions: 6 },
-  hard: { positions: 9 },
+  easy: { positions: 4, memorizeMs: 8000 },
+  medium: { positions: 6, memorizeMs: 12000 },
+  hard: { positions: 9, memorizeMs: 15000 },
 } as const;
 
 const ROOMS = [
@@ -67,26 +70,31 @@ export default function MemoryPalaceNumbers({
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
 
+  const memorizeDuration = DIFF_PARAMS[effectiveDiff].memorizeMs;
+
   useEffect(() => {
     if (phase !== 'playing' || playingStep !== 'memorize') return;
-    setMemMsLeft(5000);
+    setMemMsLeft(memorizeDuration);
     const start = Date.now();
     const id = setInterval(() => {
-      setMemMsLeft(Math.max(0, 5000 - (Date.now() - start)));
+      setMemMsLeft(Math.max(0, memorizeDuration - (Date.now() - start)));
     }, 50);
     const t = setTimeout(() => {
       clearInterval(id);
       const r = rounds[currentIdx];
       setAnswers(Array(r.rooms.length).fill(''));
       setPlayingStep('recall');
-    }, 5000);
+    }, memorizeDuration);
     return () => {
       clearInterval(id);
       clearTimeout(t);
     };
-  }, [phase, playingStep, currentIdx, rounds]);
+  }, [phase, playingStep, currentIdx, rounds, memorizeDuration]);
+
+  const startTimeRef = useRef(Date.now());
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const rs = Array.from({ length: totalRounds }, () => buildRound(effectiveDiff));
     setRounds(rs);
     setCurrentIdx(0);
@@ -173,37 +181,25 @@ export default function MemoryPalaceNumbers({
   }
 
   if (phase === 'results') {
-    const score = results.reduce((s, r) => s + r.correctCount, 0);
-    const totalPts = results.reduce((s, r) => s + r.round.values.length, 0);
-    return (
-      <div className="max-w-lg mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Memory palace — results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">
-            {score}/{totalPts}
-          </div>
-          <p className="text-gray-400 text-sm">Correct digit recalls across all rooms</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-accent rounded-xl font-semibold hover:bg-accent-dark"
-          >
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-xl font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Memory Palace Numbers',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Memory Palace Numbers', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && rounds.length > 0) {
@@ -274,7 +270,7 @@ export default function MemoryPalaceNumbers({
       <h2 className="text-2xl font-bold mb-6 text-center">Memory palace numbers</h2>
       <div className="bg-surface rounded-xl p-6 space-y-4">
         <p className="text-gray-400 text-sm">
-          Numbers are paired with rooms. Study the map for 5 seconds, then type each number from memory.
+          Numbers are paired with rooms. Study the map for {DIFF_PARAMS[difficulty].memorizeMs / 1000}s, then type each number from memory.
         </p>
         <div>
           <label className="block text-sm text-gray-400 mb-1">Rounds</label>

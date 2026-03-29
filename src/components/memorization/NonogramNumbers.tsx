@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -79,7 +82,10 @@ export default function NonogramNumbers({
 
   const emptyUser = (n: number) => Array.from({ length: n }, () => Array(n).fill(false));
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const n = DIFF_PARAMS[effectiveDiff].gridSize;
     setAllPuzzles(Array.from({ length: totalRounds }, () => makePuzzle(n)));
     setCurrentIdx(0);
@@ -157,33 +163,25 @@ export default function NonogramNumbers({
   }
 
   if (phase === 'results') {
-    const score = results.reduce((s, o) => s + o.correct, 0);
-    const total = results.reduce((s, o) => s + o.total, 0);
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Nonogram</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6 border border-gray-700/50">
-          <div className="text-4xl font-bold mb-2">
-            {score}/{total}
-          </div>
-          <p className="text-gray-400 text-sm">Cells matching solution</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button type="button" onClick={startGame} className="px-6 py-2 bg-accent rounded-xl font-semibold hover:bg-accent-dark">
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-xl font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Nonogram Numbers',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Nonogram Numbers', icon: '🔢',
+        score: results.reduce((s, o) => s + o.correct, 0), total: results.reduce((s, o) => s + o.total, 0),
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r, i) => ({
+          display: `Round ${i + 1}`,
+          correct: r.correct === r.total,
+          correctAnswer: `${r.total} cells`,
+          userAnswer: `${r.correct}/${r.total} correct`,
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && puzzle) {

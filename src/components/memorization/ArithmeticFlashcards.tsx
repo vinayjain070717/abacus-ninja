@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -67,8 +69,8 @@ export default function ArithmeticFlashcards({
   const [secondsLeft, setSecondsLeft] = useState(TIME_SECONDS);
   const [problem, setProblem] = useState<ArithmeticFlashProblem | null>(null);
   const [answer, setAnswer] = useState('');
-  const [correctCount, setCorrectCount] = useState(0);
-  const [attempted, setAttempted] = useState(0);
+  const [_correctCount, setCorrectCount] = useState(0);
+  const [_attempted, setAttempted] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const countsRef = useRef({ correct: 0, attempted: 0 });
@@ -125,7 +127,10 @@ export default function ArithmeticFlashcards({
     }
   }, [phase, problem]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     paramsRef.current = DIFF_PARAMS[effectiveDiff];
     sprintEndedRef.current = false;
     countsRef.current = { correct: 0, attempted: 0 };
@@ -178,34 +183,21 @@ export default function ArithmeticFlashcards({
   }
 
   if (phase === 'results') {
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Arithmetic flashcards</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <p className="text-gray-400 text-sm mb-2">{TIME_SECONDS}-second round</p>
-          <div className="text-4xl font-bold mb-2 text-accent">{correctCount}</div>
-          <p className="text-gray-400">correct out of {attempted} answered</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const c = countsRef.current.correct;
+    const a = countsRef.current.attempted;
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const reportData: ReportData = {
+      title: 'Arithmetic Flashcards',
+      subtitle: `${effectiveDiff} · ${TIME_SECONDS}s sprint`,
+      totalTimeSec,
+      sections: [{
+        label: 'Arithmetic Flashcards', icon: '⚡',
+        score: c, total: a || 1,
+        timeSpentSec: totalTimeSec, idealTimeSec: TIME_SECONDS,
+        details: [],
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && problem) {

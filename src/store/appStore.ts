@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { APP_CONFIG } from '../config/appConfig';
+import { SoundManager } from '../utils/sounds';
+
+export type GameMode = 'normal' | 'speed' | 'zen';
 
 interface AppState {
   settings: {
@@ -8,10 +11,12 @@ interface AppState {
     defaultProblems: number;
     soundEnabled: boolean;
   };
+  gameMode: GameMode;
   updateSpeed: (digits: number, speed: number) => void;
   updateRows: (digits: number, rows: number) => void;
   updateDefaultProblems: (count: number) => void;
   toggleSound: () => void;
+  setGameMode: (mode: GameMode) => void;
 }
 
 export const useAppStore = create<AppState>()((set) => ({
@@ -43,8 +48,14 @@ export const useAppStore = create<AppState>()((set) => ({
       settings: { ...s.settings, defaultProblems: count },
     })),
 
+  gameMode: 'normal' as GameMode,
+
   toggleSound: () =>
-    set((s) => ({
-      settings: { ...s.settings, soundEnabled: !s.settings.soundEnabled },
-    })),
+    set((s) => {
+      const next = !s.settings.soundEnabled;
+      SoundManager.enabled = next;
+      return { settings: { ...s.settings, soundEnabled: next } };
+    }),
+
+  setGameMode: (mode: GameMode) => set({ gameMode: mode }),
 }));

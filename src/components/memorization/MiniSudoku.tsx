@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { generateSudoku, type SudokuPuzzle } from '../../utils/sudokuGenerator';
 import { formatTime } from '../../utils/scoring';
 import type { Difficulty } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 
 type Phase = 'config' | 'playing' | 'results';
@@ -28,7 +30,7 @@ export default function MiniSudoku({ worksheetMode, onComplete }: {
   const [puzzle, setPuzzle] = useState<SudokuPuzzle | null>(initData.puzzle);
   const [userGrid, setUserGrid] = useState<string[][]>(initData.grid);
   const [seconds, setSeconds] = useState(0);
-  const [errors, setErrors] = useState(0);
+  const [_errors, setErrors] = useState(0);
 
   useEffect(() => {
     if (phase !== 'playing') return;
@@ -36,7 +38,10 @@ export default function MiniSudoku({ worksheetMode, onComplete }: {
     return () => clearInterval(t);
   }, [phase]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const chosenSize = DIFF_SIZE[difficulty];
     setSize(chosenSize);
     const p = generateSudoku(chosenSize);
@@ -70,23 +75,36 @@ export default function MiniSudoku({ worksheetMode, onComplete }: {
     setPhase('results');
   };
 
-  if (phase === 'results') {
+  if (phase === 'results' && puzzle) {
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
     const total = size * size;
-    const correct = total - errors;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Sudoku Complete!</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{correct}/{total}</div>
-          <div className="text-gray-400">Time: {formatTime(seconds)}</div>
-          {errors === 0 && <div className="text-green-400 font-bold mt-2">Perfect!</div>}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">New Puzzle</button>
-          <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>
-        </div>
-      </div>
-    );
+    const details = [];
+    let correctCells = 0;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (puzzle.puzzle[r][c] !== null) continue;
+        const isCorrect = parseInt(userGrid[r][c]) === puzzle.solution[r][c];
+        if (isCorrect) correctCells++;
+        details.push({
+          display: `Cell (${r + 1},${c + 1})`,
+          correct: isCorrect,
+          correctAnswer: String(puzzle.solution[r][c]),
+          userAnswer: userGrid[r][c] || '—',
+        });
+      }
+    }
+    const reportData: ReportData = {
+      title: 'Mini Sudoku',
+      subtitle: `${difficulty} · ${size}×${size}`,
+      totalTimeSec,
+      sections: [{
+        label: 'Mini Sudoku', icon: '🧩',
+        score: correctCells, total: details.length || total,
+        timeSpentSec: totalTimeSec, idealTimeSec: size * size * 3,
+        details,
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={() => setPhase('config')} />;
   }
 
   if (phase === 'playing' && puzzle) {

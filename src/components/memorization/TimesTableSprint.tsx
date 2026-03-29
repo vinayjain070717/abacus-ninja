@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import { generateTimesTableProblem, type TimesTableProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 
@@ -25,7 +27,7 @@ export default function TimesTableSprint({
 
   const wsParams = worksheetMode ? DIFF_PARAMS[worksheetMode.difficulty ?? 'medium'] : DIFF_PARAMS.medium;
   const [secondsLeft, setSecondsLeft] = useState<number>(wsParams.timeLimitSeconds);
-  const [activeTimeLimit, setActiveTimeLimit] = useState<number>(wsParams.timeLimitSeconds);
+  const [_activeTimeLimit, setActiveTimeLimit] = useState<number>(wsParams.timeLimitSeconds);
   const [problem, setProblem] = useState<TimesTableProblem | null>(() =>
     worksheetMode ? generateTimesTableProblem(wsParams.maxFactor) : null
   );
@@ -74,7 +76,10 @@ export default function TimesTableSprint({
     }
   }, [phase, problem]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     sessionMaxFactorRef.current = p.maxFactor;
     sprintEndedRef.current = false;
@@ -101,39 +106,21 @@ export default function TimesTableSprint({
   };
 
   if (phase === 'results') {
-    return (
-      <div className="max-w-md mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Times table sprint</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <p className="text-gray-400 text-sm mb-2">
-            {activeTimeLimit}-second sprint
-            {worksheetMode ? (
-              <span className="block text-xs mt-1 text-gray-500">Worksheet mode · one {activeTimeLimit}s round</span>
-            ) : null}
-          </p>
-          <div className="text-4xl font-bold mb-2 text-accent">{correctCount}</div>
-          <p className="text-gray-400">correct out of {attempted} answered</p>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold text-white hover:bg-primary-dark"
-          >
-            Sprint again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const c = countsRef.current.correct;
+    const a = countsRef.current.attempted;
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const reportData: ReportData = {
+      title: 'Times Table Sprint',
+      subtitle: `${effectiveDiff} · ${DIFF_PARAMS[effectiveDiff].timeLimitSeconds}s sprint`,
+      totalTimeSec,
+      sections: [{
+        label: 'Times Table Sprint', icon: '✖️',
+        score: c, total: a || 1,
+        timeSpentSec: totalTimeSec, idealTimeSec: DIFF_PARAMS[effectiveDiff].timeLimitSeconds,
+        details: [],
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'sprinting' && problem) {

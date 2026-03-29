@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import { generateDigitSpanOperation, type DigitSpanProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
@@ -52,7 +55,10 @@ export default function DigitSpanOperation({ worksheetMode, onComplete }: {
     return () => clearTimeout(t);
   }, [phase, currentIdx, allProblems.length]);
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const c = DIFF_PARAMS[effectiveDiff].count;
     const ps = Array.from({ length: totalRounds }, () => generateDigitSpanOperation(c));
     setAllProblems(ps);
@@ -128,45 +134,26 @@ export default function DigitSpanOperation({ worksheetMode, onComplete }: {
   }
 
   if (phase === 'results') {
-    const totalScore = results.reduce((s, r) => s + r.digitScore, 0);
-    const totalPossible = results.reduce((s, r) => s + r.problem.transformed.length, 0);
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary">Digit Span (+1, reversed)</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2 text-primary">{totalScore}/{totalPossible}</div>
-          <p className="text-gray-400 text-sm">Digits correct across all rounds</p>
-        </div>
-        <div className="space-y-2 mb-6 text-left">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm font-mono border ${
-                r.digitScore === r.problem.transformed.length
-                  ? 'bg-green-900/30 border-green-800'
-                  : 'bg-surface-light border-gray-600'
-              }`}
-            >
-              <div className="text-gray-400 text-xs mb-1">Round {i + 1}</div>
-              <div>Shown: {r.problem.original.join(' ')}</div>
-              <div>Expected: {r.problem.transformed.join('')}</div>
-              <div>You: {r.userInput || '—'}</div>
-              <div className="text-primary font-semibold mt-1">{r.digitScore}/{r.problem.transformed.length} digits</div>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button type="button" onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button type="button" onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Digit Span Operation',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Digit Span Operation', icon: '🔢',
+        score: results.reduce((s, r) => s + r.digitScore, 0),
+        total: results.reduce((s, r) => s + r.problem.transformed.length, 0),
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r, i) => ({
+          display: `Round ${i + 1}`,
+          correct: r.digitScore === r.problem.transformed.length,
+          correctAnswer: r.problem.transformed.join(''),
+          userAnswer: r.userInput || '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'showing' && currentProblem) {

@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateComparisonPair, type ComparisonProblem } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
 
@@ -107,7 +110,10 @@ export default function GreaterLessEqual({ worksheetMode, onComplete }: {
     }
   };
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setComplexity(p.complexity);
     setTimeLimitSeconds(p.timeLimitSeconds);
@@ -145,29 +151,25 @@ export default function GreaterLessEqual({ worksheetMode, onComplete }: {
   }
 
   if (phase === 'results') {
-    const score = results.filter(r => r.correct).length;
-    const avgTime = results.length > 0 ? Math.round(results.reduce((s, r) => s + r.timeMs, 0) / results.length) : 0;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{results.length}</div>
-          <div className="text-gray-400 text-sm">Avg response: {avgTime}ms</div>
-        </div>
-        <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
-          {results.map((r, i) => (
-            <div key={i} className={`p-2 rounded-lg text-xs font-mono flex justify-between ${r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'}`}>
-              <span>{r.problem.leftDisplay} {r.problem.correctAnswer} {r.problem.rightDisplay}</span>
-              <span>{r.timeMs}ms</span>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          {!worksheetMode && <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Greater Less Equal',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Greater Less Equal', icon: '🧠',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: 'problem' in r && r.problem && typeof r.problem === 'object' && 'display' in r.problem ? String((r.problem as any).display) : 'Round',
+          correct: r.correct,
+          correctAnswer: 'problem' in r && r.problem && typeof r.problem === 'object' && 'answer' in r.problem ? String((r.problem as any).answer) : '',
+          userAnswer: 'userAnswer' in r ? String((r as any).userAnswer ?? '—') : '',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && allProblems.length > 0) {

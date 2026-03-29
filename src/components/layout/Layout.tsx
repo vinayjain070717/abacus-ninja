@@ -7,6 +7,8 @@ import FocusTimer from '../shared/FocusTimer';
 import ErrorBoundary from '../shared/ErrorBoundary';
 import SupportModal from '../shared/SupportModal';
 import { APP_CONFIG } from '../../config/appConfig';
+import { useAppStore } from '../../store/appStore';
+import { useStreak } from '../../hooks/useStreak';
 
 const navItems = [
   { to: '/', label: 'Home', icon: '⌂' },
@@ -19,13 +21,35 @@ const navItems = [
   { to: '/abacus', label: 'Abacus', icon: '⚬' },
   { to: '/tutorials', label: 'Tutorials', icon: '📖' },
   { to: '/timed-challenge', label: 'Timed', icon: '⏱' },
+  { to: '/benefits', label: 'Benefits', icon: '🎯' },
 ];
 
 export default function Layout() {
   const { cycle, theme } = useTheme(APP_CONFIG.theme.default);
-  const { showHelp, closeHelp, toggleHelp } = useKeyboardShortcuts();
+  const { showHelp, closeHelp, toggleHelp } = useKeyboardShortcuts({
+    onToggleSound: () => useAppStore.getState().toggleSound(),
+    onCycleMode: () => {
+      const modes = ['normal', 'speed', 'zen'] as const;
+      const cur = useAppStore.getState().gameMode;
+      const idx = modes.indexOf(cur);
+      useAppStore.getState().setGameMode(modes[(idx + 1) % modes.length]);
+    },
+  });
   const [focusTimerOpen, setFocusTimerOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const soundEnabled = useAppStore((s) => s.settings.soundEnabled);
+  const toggleSound = useAppStore((s) => s.toggleSound);
+  const gameMode = useAppStore((s) => s.gameMode);
+  const setGameMode = useAppStore((s) => s.setGameMode);
+  const { currentStreak, bestStreak, hasPracticedToday } = useStreak();
+  const [streakPopover, setStreakPopover] = useState(false);
+
+  const modeIcon = gameMode === 'speed' ? '⚡' : gameMode === 'zen' ? '🧘' : '▶';
+  const nextMode = () => {
+    const modes = ['normal', 'speed', 'zen'] as const;
+    const idx = modes.indexOf(gameMode);
+    setGameMode(modes[(idx + 1) % modes.length]);
+  };
 
   const themeIcon = theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '◐';
 
@@ -40,6 +64,27 @@ export default function Layout() {
           <span className="text-accent">{APP_CONFIG.app.nameSecond}</span>
         </NavLink>
         <div className="flex items-center gap-1 shrink-0">
+          {currentStreak >= 1 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setStreakPopover((o) => !o)}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-surface-light flex items-center gap-1"
+                title={`${currentStreak} day streak`}
+                aria-label="Practice streak"
+              >
+                <span className="text-lg" aria-hidden>🔥</span>
+                <span className="text-sm font-bold text-orange-400">{currentStreak}</span>
+              </button>
+              {streakPopover && (
+                <div className="absolute right-0 top-full mt-1 bg-surface border border-gray-700 rounded-lg shadow-xl p-3 z-50 w-48 text-xs space-y-1">
+                  <div className="flex justify-between"><span className="text-gray-400">Current streak</span><span className="font-bold text-orange-400">{currentStreak} days</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Best streak</span><span className="font-bold text-yellow-400">{bestStreak} days</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Practiced today</span><span className={`font-bold ${hasPracticedToday ? 'text-green-400' : 'text-red-400'}`}>{hasPracticedToday ? 'Yes' : 'Not yet'}</span></div>
+                </div>
+              )}
+            </div>
+          )}
           <button
             type="button"
             onClick={cycle}
@@ -50,6 +95,25 @@ export default function Layout() {
             <span className="text-lg" aria-hidden>
               {themeIcon}
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-surface-light"
+            title={soundEnabled ? 'Sound on' : 'Sound off'}
+            aria-label="Toggle sound"
+          >
+            <span className="text-lg" aria-hidden>{soundEnabled ? '🔊' : '🔇'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={nextMode}
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-surface-light flex items-center gap-1"
+            title={`Mode: ${APP_CONFIG.gameModes[gameMode].label}`}
+            aria-label="Cycle game mode"
+          >
+            <span className="text-lg" aria-hidden>{modeIcon}</span>
+            <span className="text-[10px] font-bold uppercase hidden sm:inline">{gameMode}</span>
           </button>
           <button
             type="button"

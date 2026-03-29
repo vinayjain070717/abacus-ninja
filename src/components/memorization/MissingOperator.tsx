@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateMissingOperatorProblem, type MissingOperatorProblem } from '../../utils/problemGenerator';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 type Phase = 'config' | 'playing' | 'feedback' | 'results';
 
@@ -43,6 +46,7 @@ export default function MissingOperator({ worksheetMode, onComplete }: {
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const opsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const startTimeRef = useRef(Date.now());
 
   useEffect(() => {
     if (worksheetMode) return;
@@ -51,6 +55,7 @@ export default function MissingOperator({ worksheetMode, onComplete }: {
   }, [difficulty, worksheetMode]);
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const p = DIFF_PARAMS[effectiveDiff];
     setOpCount(p.operands);
     const ps = Array.from({ length: totalRounds }, () =>
@@ -123,27 +128,25 @@ export default function MissingOperator({ worksheetMode, onComplete }: {
   }
 
   if (phase === 'results') {
-    const score = results.filter(r => r.correct).length;
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{results.length}</div>
-        </div>
-        <div className="space-y-2 mb-6">
-          {results.map((r, i) => (
-            <div key={i} className={`p-3 rounded-lg text-sm font-mono ${r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'}`}>
-              {r.problem.operands[0]} {r.problem.operators.map((op, j) => `${op} ${r.problem.operands[j + 1]}`).join(' ')} = {r.problem.answer}
-              {!r.correct && <span className="text-red-400 ml-2">(You: {r.userOps.join(', ')})</span>}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">Play Again</button>
-          {!worksheetMode && <button onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">Settings</button>}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Missing Operator',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Missing Operator', icon: '🔣',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: `${r.problem.operands[0]} ${r.problem.operators.map((op, j) => `${op} ${r.problem.operands[j + 1]}`).join(' ')} = ${r.problem.answer}`,
+          correct: r.correct,
+          correctAnswer: r.problem.operators.join(', '),
+          userAnswer: r.userOps.join(', '),
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && allProblems.length > 0) {

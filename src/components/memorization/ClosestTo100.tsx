@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import { generateClosestTo100Problem, type ClosestTo100Problem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 const DIFF_PARAMS = {
   easy: { cardCount: 3 },
@@ -47,8 +50,10 @@ export default function ClosestTo100({
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const cc = DIFF_PARAMS[effectiveDiff].cardCount;
     const ps = Array.from({ length: totalRounds }, () => generateClosestTo100Problem(cc, TARGET));
     setAllProblems(ps);
@@ -117,51 +122,25 @@ export default function ClosestTo100({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.point).length;
-    return (
-      <div className="max-w-lg mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Closest to {TARGET} — results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">
-            {score}/{results.length}
-          </div>
-          <p className="text-gray-400 text-sm">Full point when within {FULL_POINT_WITHIN} of {TARGET}.</p>
-        </div>
-        <div className="space-y-2 mb-6 text-left max-h-72 overflow-y-auto">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm ${
-                r.point ? 'bg-green-900/30 border border-green-800' : 'bg-surface-light border border-gray-600'
-              }`}
-            >
-              <div className="font-mono text-gray-300">[{r.problem.numbers.join(', ')}]</div>
-              <div className="mt-1">
-                You: {r.userValue ?? '—'} · distance {r.distance === Infinity ? '—' : r.distance}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark text-white"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: `Closest to ${TARGET}`,
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: `Closest to ${TARGET}`, icon: '🎯',
+        score: results.filter((r) => r.point).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: `[${r.problem.numbers.join(', ')}] → ${r.problem.target}`,
+          correct: r.point,
+          correctAnswer: `within ${FULL_POINT_WITHIN}`,
+          userAnswer: `${r.userValue ?? '—'} (dist: ${r.distance === Infinity ? '—' : r.distance})`,
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && allProblems.length > 0) {

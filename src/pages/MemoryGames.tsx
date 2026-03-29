@@ -2,6 +2,7 @@ import { useState, lazy, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { APP_CONFIG, BRAIN_GAME_IDS, type GameCategory, type BrainGameConfig } from '../config/appConfig';
 import InfoTooltip from '../components/shared/InfoTooltip';
+import { getAllPersonalBests } from '../hooks/usePersonalBest';
 
 import NumberMemory from '../components/memorization/NumberMemory';
 import ReverseMemory from '../components/memorization/ReverseMemory';
@@ -149,10 +150,17 @@ const GAME_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown
 };
 
 const CATEGORY_COLORS: Record<GameCategory, string> = {
-  'memory': 'from-pink-600/30 to-pink-800/30 border-pink-700/50',
-  'mental-arithmetic': 'from-blue-600/30 to-blue-800/30 border-blue-700/50',
-  'logic': 'from-purple-600/30 to-purple-800/30 border-purple-700/50',
-  'speed': 'from-orange-600/30 to-orange-800/30 border-orange-700/50',
+  'memory': 'from-pink-900/80 to-pink-950/90 border-pink-700/50',
+  'mental-arithmetic': 'from-blue-900/80 to-blue-950/90 border-blue-700/50',
+  'logic': 'from-purple-900/80 to-purple-950/90 border-purple-700/50',
+  'speed': 'from-orange-900/80 to-orange-950/90 border-orange-700/50',
+};
+
+const CATEGORY_IMAGES: Record<GameCategory, string> = {
+  'memory': 'https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=400&q=75&auto=format',
+  'mental-arithmetic': 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&q=75&auto=format',
+  'logic': 'https://images.unsplash.com/photo-1529590003495-b2646e2718bf?w=400&q=75&auto=format',
+  'speed': 'https://images.unsplash.com/photo-1501139083538-0139583c060f?w=400&q=75&auto=format',
 };
 
 const ALL_CATEGORIES: ('all' | GameCategory)[] = ['all', 'memory', 'mental-arithmetic', 'logic', 'speed'];
@@ -193,6 +201,7 @@ export default function MemoryGames() {
     );
   }
 
+  const pbData = getAllPersonalBests();
   const games = BRAIN_GAME_IDS.map((id) => ({
     id,
     ...(APP_CONFIG.brainGames as Record<string, BrainGameConfig>)[id],
@@ -255,19 +264,33 @@ export default function MemoryGames() {
             tabIndex={0}
             onClick={() => setActiveGame(game.id)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveGame(game.id); } }}
-            className={`bg-gradient-to-br ${CATEGORY_COLORS[game.category]} border rounded-xl p-4 text-left hover:scale-[1.02] transition-transform flex flex-col gap-2 h-full cursor-pointer`}
+            className="rounded-xl overflow-hidden hover:scale-[1.02] transition-transform cursor-pointer relative group border border-gray-700/50 h-full"
           >
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{game.icon}</span>
-              <span className="font-bold text-sm leading-tight flex-1">{game.label}</span>
-              <InfoTooltip benefit={game.benefit} />
-            </div>
-            <p className="text-xs text-gray-400 leading-relaxed flex-1">{game.description}</p>
-            {game.example && (
-              <div className="bg-black/20 rounded-lg px-2 py-1.5 mt-auto">
-                <p className="text-xs font-mono text-gray-300">{game.example}</p>
+            <img
+              src={CATEGORY_IMAGES[game.category]}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
+            <div className={`absolute inset-0 bg-gradient-to-br ${CATEGORY_COLORS[game.category]}`} />
+            <div className="relative z-10 p-4 flex flex-col gap-2 h-full">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{game.icon}</span>
+                <span className="font-bold text-sm leading-tight flex-1 text-white">{game.label}</span>
+                <InfoTooltip benefit={game.benefit} />
               </div>
-            )}
+              {pbData[game.id] && (
+                <span className="text-[10px] font-bold bg-yellow-500/20 text-yellow-400 rounded px-1.5 py-0.5 self-start">
+                  PB: {pbData[game.id].pct}%
+                </span>
+              )}
+              <p className="text-xs text-white/70 leading-relaxed flex-1">{game.description}</p>
+              {game.example && (
+                <div className="bg-black/30 rounded-lg px-2 py-1.5 mt-auto">
+                  <p className="text-xs font-mono text-white/80">{game.example}</p>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

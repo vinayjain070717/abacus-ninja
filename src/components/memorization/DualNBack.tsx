@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 import {
   generateDualNBackSequence,
   type DualNBackProblem,
@@ -27,24 +30,17 @@ export default function DualNBack({ worksheetMode, onComplete }: {
   const effectiveDiff = worksheetMode?.difficulty ?? difficulty;
   const [totalRounds, setTotalRounds] = useState(worksheetMode?.rounds ?? 5);
 
+  const wsRounds = worksheetMode?.rounds ?? 0;
+  const wsDiff = worksheetMode?.difficulty ?? 'medium';
   const [roundsData, setRoundsData] = useState<DualNBackProblem[]>(() => {
     if (!worksheetMode) return [];
-    const d = (worksheetMode.difficulty ?? 'medium') as Difficulty;
-    const { seqLength, nBack } = DIFF_PARAMS[d];
-    return Array.from({ length: worksheetMode.rounds }, () => generateDualNBackSequence(seqLength, nBack));
+    const { seqLength, nBack } = DIFF_PARAMS[wsDiff];
+    return Array.from({ length: wsRounds }, () => generateDualNBackSequence(seqLength, nBack));
   });
   const [roundIdx, setRoundIdx] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
 
-  const [numHits, setNumHits] = useState(0);
-  const [numMisses, setNumMisses] = useState(0);
-  const [numFalseAlarms, setNumFalseAlarms] = useState(0);
-  const [posHits, setPosHits] = useState(0);
-  const [posMisses, setPosMisses] = useState(0);
-  const [posFalseAlarms, setPosFalseAlarms] = useState(0);
-
   const [feedbackLines, setFeedbackLines] = useState<string[]>([]);
-
   const [clickedNum, setClickedNum] = useState(false);
   const [clickedPos, setClickedPos] = useState(false);
 
@@ -53,6 +49,9 @@ export default function DualNBack({ worksheetMode, onComplete }: {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const isWorksheet = useRef(!!worksheetMode);
+
+  const scoresRef = useRef({ numHits: 0, numMisses: 0, numFA: 0, posHits: 0, posMisses: 0, posFA: 0 });
 
   const problem = roundsData[roundIdx];
   const sequence: DualNBackStep[] = problem?.sequence ?? [];
@@ -74,18 +73,6 @@ export default function DualNBack({ worksheetMode, onComplete }: {
     setClickedPos(false);
   }, [stepIndex, roundIdx]);
 
-  const finishAllRounds = useCallback(() => {
-    const numOpp = numHits + numMisses;
-    const posOpp = posHits + posMisses;
-    const score = numHits + posHits;
-    const total = Math.max(1, numOpp + posOpp);
-    if (worksheetMode && onCompleteRef.current) {
-      onCompleteRef.current(score, total);
-      return;
-    }
-    setPhase('results');
-  }, [worksheetMode, numHits, numMisses, posHits, posMisses]);
-
   useEffect(() => {
     if (phase !== 'playing' || sequence.length === 0) return;
 
@@ -94,7 +81,16 @@ export default function DualNBack({ worksheetMode, onComplete }: {
         setRoundIdx((r) => r + 1);
         setStepIndex(0);
       } else {
-        finishAllRounds();
+        const s = scoresRef.current;
+        const numOpp = s.numHits + s.numMisses;
+        const posOpp = s.posHits + s.posMisses;
+        const score = s.numHits + s.posHits;
+        const total = Math.max(1, numOpp + posOpp);
+        if (isWorksheet.current && onCompleteRef.current) {
+          onCompleteRef.current(score, total);
+          return;
+        }
+        setPhase('results');
       }
       return;
     }
@@ -105,52 +101,27 @@ export default function DualNBack({ worksheetMode, onComplete }: {
       const cn = clickedNumRef.current;
       const cp = clickedPosRef.current;
       const lines: string[] = [];
+      const s = scoresRef.current;
 
       const numTarget = i >= n && problem.numberMatches[i];
       const posTarget = i >= n && problem.positionMatches[i];
 
       if (i < n) {
-        if (cn) {
-          setNumFalseAlarms((x) => x + 1);
-          lines.push('Number: false alarm (no target yet)');
-        }
-        if (cp) {
-          setPosFalseAlarms((x) => x + 1);
-          lines.push('Position: false alarm (no target yet)');
-        }
-        if (!cn && !cp) {
-          lines.push('No targets this step — good.');
-        }
+        if (cn) { s.numFA++; lines.push('Number: false alarm (no target yet)'); }
+        if (cp) { s.posFA++; lines.push('Position: false alarm (no target yet)'); }
+        if (!cn && !cp) { lines.push('No targets this step — good.'); }
       } else {
         if (numTarget) {
-          if (cn) {
-            setNumHits((h) => h + 1);
-            lines.push('Number: hit');
-          } else {
-            setNumMisses((m) => m + 1);
-            lines.push('Number: missed match');
-          }
-        } else if (cn) {
-          setNumFalseAlarms((f) => f + 1);
-          lines.push('Number: false alarm');
-        } else {
-          lines.push('Number: correct reject');
-        }
+          if (cn) { s.numHits++; lines.push('Number: hit'); }
+          else { s.numMisses++; lines.push('Number: missed match'); }
+        } else if (cn) { s.numFA++; lines.push('Number: false alarm'); }
+        else { lines.push('Number: correct reject'); }
 
         if (posTarget) {
-          if (cp) {
-            setPosHits((h) => h + 1);
-            lines.push('Position: hit');
-          } else {
-            setPosMisses((m) => m + 1);
-            lines.push('Position: missed match');
-          }
-        } else if (cp) {
-          setPosFalseAlarms((f) => f + 1);
-          lines.push('Position: false alarm');
-        } else {
-          lines.push('Position: correct reject');
-        }
+          if (cp) { s.posHits++; lines.push('Position: hit'); }
+          else { s.posMisses++; lines.push('Position: missed match'); }
+        } else if (cp) { s.posFA++; lines.push('Position: false alarm'); }
+        else { lines.push('Position: correct reject'); }
       }
 
       setFeedbackLines(lines);
@@ -158,17 +129,7 @@ export default function DualNBack({ worksheetMode, onComplete }: {
     }, STEP_MS);
 
     return () => clearTimer();
-  }, [
-    phase,
-    stepIndex,
-    sequence.length,
-    roundIdx,
-    roundsData.length,
-    n,
-    problem,
-    clearTimer,
-    finishAllRounds,
-  ]);
+  }, [phase, stepIndex, sequence.length, roundIdx, roundsData.length, n, problem, clearTimer]);
 
   useEffect(() => {
     if (phase !== 'feedback') return;
@@ -194,60 +155,47 @@ export default function DualNBack({ worksheetMode, onComplete }: {
     setClickedPos(true);
   };
 
+  const startTimeRef = useRef(Date.now());
+
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const { seqLength, nBack } = DIFF_PARAMS[effectiveDiff];
     const rs = Array.from({ length: totalRounds }, () =>
       generateDualNBackSequence(seqLength, nBack));
     setRoundsData(rs);
     setRoundIdx(0);
     setStepIndex(0);
-    setNumHits(0);
-    setNumMisses(0);
-    setNumFalseAlarms(0);
-    setPosHits(0);
-    setPosMisses(0);
-    setPosFalseAlarms(0);
+    scoresRef.current = { numHits: 0, numMisses: 0, numFA: 0, posHits: 0, posMisses: 0, posFA: 0 };
     setFeedbackLines([]);
     setPhase('playing');
   };
 
-  const numOpp = numHits + numMisses;
-  const posOpp = posHits + posMisses;
-  const numAcc = numOpp > 0 ? Math.round((numHits / numOpp) * 100) : 0;
-  const posAcc = posOpp > 0 ? Math.round((posHits / posOpp) * 100) : 0;
-
   if (phase === 'results') {
-    return (
-      <div className="max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4 text-primary">Dual N-Back Results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6 border border-gray-700/50 space-y-4">
-          <div>
-            <p className="text-gray-400 text-sm uppercase tracking-wide">Number stream</p>
-            <p className="text-3xl font-bold text-primary tabular-nums">
-              {numHits}/{numOpp} <span className="text-lg text-gray-400">({numAcc}%)</span>
-            </p>
-            <p className="text-gray-500 text-xs">False alarms: {numFalseAlarms}</p>
-          </div>
-          <div className="border-t border-gray-700 pt-4">
-            <p className="text-gray-400 text-sm uppercase tracking-wide">Position stream</p>
-            <p className="text-3xl font-bold text-primary tabular-nums">
-              {posHits}/{posOpp} <span className="text-lg text-gray-400">({posAcc}%)</span>
-            </p>
-            <p className="text-gray-500 text-xs">False alarms: {posFalseAlarms}</p>
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button type="button" onClick={startGame} className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark">
-            Play Again
-          </button>
-          {!worksheetMode && (
-            <button type="button" onClick={() => setPhase('config')} className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600">
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const s = scoresRef.current;
+    const numOpp = s.numHits + s.numMisses;
+    const posOpp = s.posHits + s.posMisses;
+    const reportData: ReportData = {
+      title: 'Dual N-Back',
+      subtitle: `${effectiveDiff} · N=${n} · ${roundsData.length} rounds`,
+      totalTimeSec,
+      sections: [
+        {
+          label: 'Number Match', icon: '🔢',
+          score: s.numHits, total: Math.max(1, numOpp),
+          timeSpentSec: Math.round(totalTimeSec / 2), idealTimeSec: idealPerRound * roundsData.length,
+          details: [],
+        },
+        {
+          label: 'Position Match', icon: '📍',
+          score: s.posHits, total: Math.max(1, posOpp),
+          timeSpentSec: Math.round(totalTimeSec / 2), idealTimeSec: idealPerRound * roundsData.length,
+          details: [],
+        },
+      ],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={isWorksheet.current ? undefined : () => setPhase('config')} gameId="dual-n-back" />;
   }
 
   if ((phase === 'playing' || phase === 'feedback') && sequence.length > 0 && stepIndex < sequence.length) {
@@ -319,12 +267,20 @@ export default function DualNBack({ worksheetMode, onComplete }: {
     );
   }
 
+  if (phase === 'playing' && stepIndex >= sequence.length) {
+    return (
+      <div className="text-center text-gray-400 py-12">
+        <p>Advancing to next round...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto">
       <h2 className="text-2xl font-bold mb-6 text-center text-primary">Dual N-Back</h2>
       <div className="bg-surface rounded-xl p-6 space-y-4 border border-gray-700/50">
         <p className="text-gray-400 text-sm">
-          Two streams: a 3×3 position and a digit. Press Number Match or Position Match when the current stimulus matches the one from N steps ago.
+          Two streams: a 3x3 position and a digit. Press Number Match or Position Match when the current stimulus matches the one from N steps ago.
         </p>
         <DifficultySelector value={difficulty} onChange={setDifficulty} />
         <div>

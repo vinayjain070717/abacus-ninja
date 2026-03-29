@@ -1,8 +1,11 @@
 import { useState, useRef } from 'react';
 import type { Difficulty } from '../../config/appConfig';
+import { APP_CONFIG } from '../../config/appConfig';
 import { generateCountdownProblem, type CountdownProblem } from '../../utils/problemGenerator';
 import DifficultySelector from '../shared/DifficultySelector';
 import RoundFeedback from '../shared/RoundFeedback';
+import DetailedReport from '../shared/DetailedReport';
+import type { ReportData } from '../../types/report';
 
 const DIFF_PARAMS = {
   easy: { numberCount: 4 },
@@ -62,8 +65,10 @@ export default function CountdownNumbers({
   const [results, setResults] = useState<RoundResult[]>([]);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startTimeRef = useRef(Date.now());
 
   const startGame = () => {
+    startTimeRef.current = Date.now();
     const nc = DIFF_PARAMS[effectiveDiff].numberCount;
     const ps = Array.from({ length: totalRounds }, () => generateCountdownProblem(nc));
     setAllProblems(ps);
@@ -132,51 +137,25 @@ export default function CountdownNumbers({
   }
 
   if (phase === 'results') {
-    const score = results.filter((r) => r.correct).length;
-    return (
-      <div className="max-w-lg mx-auto text-center text-primary">
-        <h2 className="text-2xl font-bold mb-4">Countdown — results</h2>
-        <div className="bg-surface rounded-xl p-6 mb-6">
-          <div className="text-4xl font-bold mb-2">{score}/{results.length}</div>
-        </div>
-        <div className="space-y-2 mb-6 text-left max-h-72 overflow-y-auto">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`p-3 rounded-lg text-sm ${
-                r.correct ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'
-              }`}
-            >
-              <div className="font-mono text-gray-300">
-                [{r.problem.numbers.join(', ')}] → {r.problem.target}
-              </div>
-              <div className="mt-1 text-gray-400">Your answer: {r.expr || '—'}</div>
-              {!r.correct && (
-                <div className="mt-1 text-gray-500 text-xs">Solution: {r.problem.solution}</div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            type="button"
-            onClick={startGame}
-            className="px-6 py-2 bg-primary rounded-lg font-semibold hover:bg-primary-dark text-white"
-          >
-            Play again
-          </button>
-          {!worksheetMode && (
-            <button
-              type="button"
-              onClick={() => setPhase('config')}
-              className="px-6 py-2 bg-surface-light rounded-lg font-semibold hover:bg-gray-600"
-            >
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
-    );
+    const totalTimeSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+    const idealPerRound = (APP_CONFIG.idealTimes.brainGamePerRound as Record<string, number>)[effectiveDiff] || 12;
+    const reportData: ReportData = {
+      title: 'Countdown Numbers',
+      subtitle: `${effectiveDiff} · ${results.length} rounds`,
+      totalTimeSec,
+      sections: [{
+        label: 'Countdown Numbers', icon: '🎯',
+        score: results.filter((r) => r.correct).length, total: results.length,
+        timeSpentSec: totalTimeSec, idealTimeSec: idealPerRound * results.length,
+        details: results.map((r) => ({
+          display: `[${r.problem.numbers.join(', ')}] → ${r.problem.target}`,
+          correct: r.correct,
+          correctAnswer: r.problem.solution,
+          userAnswer: r.expr || '—',
+        })),
+      }],
+    };
+    return <DetailedReport data={reportData} onPlayAgain={startGame} onSettings={worksheetMode ? undefined : () => setPhase('config')} />;
   }
 
   if (phase === 'playing' && allProblems.length > 0) {

@@ -8,6 +8,8 @@ const shortcuts = [
   { key: 'N', description: 'Skip to next round (during feedback)' },
   { key: 'Escape', description: 'Close modal / Go back' },
   { key: '1-4', description: 'Select choice (in choice games)' },
+  { key: 'S', description: 'Toggle sound on / off' },
+  { key: 'M', description: 'Cycle game mode (Normal / Speed / Zen)' },
 ];
 
 export default function KeyboardShortcutsModal({ onClose }: Props) {
