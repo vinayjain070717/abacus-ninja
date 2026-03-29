@@ -22,7 +22,8 @@ function wait(ms: number): Promise<void> {
  * Wraps a dynamic import with retry logic. On repeated failures,
  * forces a full page reload to fetch fresh chunk manifests.
  */
-export function lazyWithRetry<T extends React.ComponentType<unknown>>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function lazyWithRetry<T extends React.ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
 ) {
   return lazy(async () => {
